@@ -117,11 +117,11 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-m', '--model_type', help='Model to train: resnet or vit.',
+parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip-rn, clip-vit.',
                     type=str, required=True)
 parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
 parser.add_argument('--cnn_size', type=int, default=50,
-                    help='Number of layers (eg. 50 = ResNet-50).', required=False)
+                    help='Number of layers for ResNet (eg. 50 = ResNet-50).', required=False)
 parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
 parser.add_argument('--fixed', action='store_true', default=False,
                     help='Fix the objects, which are randomly placed by default.')
@@ -133,6 +133,8 @@ parser.add_argument('--num_epochs', type=int, default=10, help='Number of traini
 parser.add_argument('--batch_size', type=int, default=64, help='Train/validation batch size.')
 parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers..')
+parser.add_argument('--optim', type=str, default='adamw',
+                    help='Training optimizer, eg. adam, adamw, sgd.')
 
 
 args = parser.parse_args()
@@ -148,6 +150,7 @@ cnn_size = args.cnn_size
 num_epochs = args.num_epochs
 batch_size = args.batch_size
 feature_extract = args.feature_extract
+optim = args.optim
 
 if feature_extract:
     fe_string = '_fe'
@@ -219,6 +222,7 @@ elif model_type == 'vit':
 
 model = model.to(device)  # Move model to GPU if possible
 model_str += fe_string  # Add 'fe' if applicable
+model_str += '_{0}'.format(optim)  # Optimizer string
 
 path_elements = [model_str, k, pos_condition, patch_size * multiplier]
 
@@ -246,6 +250,7 @@ wandb.config = {
     'gamma': decay_rate,
     'epochs': num_epochs,
     'batch_size': batch_size,
+    'optimizer': optim,
     'stimulus_size': '{0}x{0}'.format(patch_size * multiplier),
     'k': k,
     'pos_condition': pos_condition,
@@ -268,7 +273,13 @@ val_dataloaders = [val_dataloader, val_dataloader_abstract]
 val_labels = ['in_distribution', 'shape_bias']
 
 # Optimizer and scheduler
-optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+if optim == 'adamw':
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+elif optim == 'adam':
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+elif optim == 'sgd':
+    optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+
 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
 
 # Run training loop + evaluations

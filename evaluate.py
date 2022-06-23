@@ -7,6 +7,7 @@ import torch
 import argparse
 import os
 import json
+import clip
 
 
 def evaluate_model(model, device, model_type, log_dir, val_dataloaders, val_labels=None):
@@ -20,6 +21,9 @@ def evaluate_model(model, device, model_type, log_dir, val_dataloaders, val_labe
     for i in range(len(val_dataloaders)):
         val_dataloader = val_dataloaders[i]
         val_label = val_labels[i]
+
+        same_correct = 0
+        different_correct = 0
 
         print()
         print('{0} validation step:'.format(val_label))
@@ -42,12 +46,18 @@ def evaluate_model(model, device, model_type, log_dir, val_dataloaders, val_labe
                 for i in range(len(outputs)):
                     if outputs[i] == labels[i]:
                         eval_dict[val_label]['correct'].append(f[i])
+                        if 'same' in f[i]:
+                            same_correct += 1
+                        else:
+                            different_correct += 1
                     else:
                         eval_dict[val_label]['incorrect'].append(f[i])
 
             print()
             print('Validation: {0}'.format(val_label))
             print('# Correct: {0}'.format(len(eval_dict[val_label]['correct'])))
+            print('\tSame images classified correctly: {0}%'.format(same_correct / (len(val_dataloader.dataset) / 2)))
+            print('\tDifferent images classified correctly: {0}%'.format(different_correct / (len(val_dataloader.dataset) / 2)))
             print('# Incorrect: {0}'.format(len(eval_dict[val_label]['incorrect'])))
 
     with open('{0}/eval_ims.json'.format(log_dir), 'w') as f:
@@ -59,22 +69,21 @@ def evaluate_model(model, device, model_type, log_dir, val_dataloaders, val_labe
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-m', '--model_type', help='Model to train: resnet or vit.',
+parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip-rn, clip-vit.',
                     type=str, required=True)
 parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
 parser.add_argument('--cnn_size', type=int, default=50,
-                    help='Number of layers (eg. 50 = ResNet-50).', required=False)
+                    help='Number of layers for ResNet (eg. 50 = ResNet-50).', required=False)
 parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
-parser.add_argument('--fixed', action='store_true', default=False,
-                    help='Fix the objects, which are randomly placed by default.')
 parser.add_argument('--unaligned', action='store_true', default=False,
                     help='Misalign the objects from ViT patches.')
 parser.add_argument('--multiplier', type=int, default=1, help='Factor by which to scale up '
                                                               'stimulus size.')
-parser.add_argument('--num_epochs', type=int, default=10, help='Number of training epochs.')
 parser.add_argument('--batch_size', type=int, default=64, help='Train/validation batch size.')
 parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers..')
+parser.add_argument('--optim', type=str, default='adamw',
+                    help='Training optimizer, eg. adam, adamw, sgd.')
 
 
 args = parser.parse_args()
@@ -87,9 +96,9 @@ patch_size = args.patch_size
 k = args.k
 multiplier = args.multiplier
 cnn_size = args.cnn_size
-num_epochs = args.num_epochs
 batch_size = args.batch_size
 feature_extract = args.feature_extract
+optim = args.optim
 
 if feature_extract:
     fe_string = '_fe'
@@ -104,7 +113,6 @@ int_to_label = {0: 'different', 1: 'same'}
 label_to_int = {'different': 0, 'same': 1}
 
 # Check arguments
-assert not (fixed and unaligned)
 assert im_size % patch_size == 0
 assert k == 2 or k == 4 or k == 8
 assert model_type == 'resnet' or model_type == 'vit'
@@ -115,9 +123,7 @@ try:
 except FileExistsError:
     pass
 
-if fixed:
-    pos_condition = 'fixed'
-elif unaligned:
+if unaligned:
     pos_condition = 'unaligned'
 else:
     pos_condition = 'aligned'
@@ -125,8 +131,12 @@ else:
 if model_type == 'resnet':
     model_str = 'resnet_{0}'.format(cnn_size)
 
-    if cnn_size == 50:
+    if cnn_size == 18:
+        model = models.resnet18(pretrained=True)
+    elif cnn_size == 50:
         model = models.resnet50(pretrained=True)
+    elif cnn_size == 152:
+        model = models.resnet152(pretrained=True)
 
     # Freeze layers if feature_extract
     if feature_extract:
@@ -161,6 +171,7 @@ elif model_type == 'vit':
 
 model = model.to(device)  # Move model to GPU if possible
 model_str += fe_string  # Add 'fe' if applicable
+model_str += '_{0}'.format(optim)  # Optimizer string
 
 model_path = 'logs/{0}/{1}/{2}/{3}/model_19.pth'.format(model_str, k, pos_condition,
                                                         patch_size * multiplier)

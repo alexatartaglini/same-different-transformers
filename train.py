@@ -123,13 +123,11 @@ parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (e
 parser.add_argument('--cnn_size', type=int, default=50,
                     help='Number of layers for ResNet (eg. 50 = ResNet-50).', required=False)
 parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
-parser.add_argument('--fixed', action='store_true', default=False,
-                    help='Fix the objects, which are randomly placed by default.')
 parser.add_argument('--unaligned', action='store_true', default=False,
                     help='Misalign the objects from ViT patches.')
 parser.add_argument('--multiplier', type=int, default=1, help='Factor by which to scale up '
                                                               'stimulus size.')
-parser.add_argument('--num_epochs', type=int, default=10, help='Number of training epochs.')
+parser.add_argument('--num_epochs', type=int, default=30, help='Number of training epochs.')
 parser.add_argument('--batch_size', type=int, default=64, help='Train/validation batch size.')
 parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers..')
@@ -165,7 +163,6 @@ int_to_label = {0: 'different', 1: 'same'}
 label_to_int = {'different': 0, 'same': 1}
 
 # Check arguments
-assert not (fixed and unaligned)
 assert im_size % patch_size == 0
 assert k == 2 or k == 4 or k == 8
 assert model_type == 'resnet' or model_type == 'vit'
@@ -176,9 +173,7 @@ try:
 except FileExistsError:
     pass
 
-if fixed:
-    pos_condition = 'fixed'
-elif unaligned:
+if unaligned:
     pos_condition = 'unaligned'
 else:
     pos_condition = 'aligned'
@@ -186,8 +181,12 @@ else:
 if model_type == 'resnet':
     model_str = 'resnet_{0}'.format(cnn_size)
 
-    if cnn_size == 50:
+    if cnn_size == 18:
+        model = models.resnet18(pretrained=True)
+    elif cnn_size == 50:
         model = models.resnet50(pretrained=True)
+    elif cnn_size == 152:
+        model = models.resnet152(pretrained=True)
 
     # Freeze layers if feature_extract
     if feature_extract:
@@ -280,7 +279,8 @@ elif optim == 'adam':
 elif optim == 'sgd':
     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 
-scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
+#scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2)
 
 # Run training loop + evaluations
 model = train_model(model, device, model_type, train_dataloader, len(train_dataset), batch_size,

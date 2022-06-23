@@ -6,7 +6,7 @@ import argparse
 import glob
 from torch.utils.data import Dataset
 import itertools
-from math import factorial
+from math import factorial, floor
 
 
 def nCr(n, r):
@@ -57,6 +57,7 @@ class SameDifferentDataset(Dataset):
         return item, im_path
 
 
+
 def initialize_pairs(k, n, object_files, obj_size, im_size):
     '''
     Creates len(object_files) unique k-length combinations selected from object_files without
@@ -99,30 +100,10 @@ def initialize_pairs(k, n, object_files, obj_size, im_size):
         same_pairs.append([obj for _ in range(k)])
         obj_counts[obj] += 1
 
-    '''
-    mat = [[None for _ in range(k)] for _ in range(n * 2)]  # kx(n*2) matrix
-
-    # Different pairs:
-    for i in range(n):
-        while True:
-            sample = random.sample(object_files, k)
-            for prev in range(i - 1):
-                if set(sample) == set(mat[prev]):
-                    break
-            break
-
-        mat[i] = sample
-
-    # Same pairs:
-    for i in range(n, n * 2):
-        obj = random.choice(object_files)
-        mat[i] = [obj for _ in range(k)]
-        
-    '''
-
     return different_pairs, same_pairs
 
 
+'''
 def create_stimuli(pairs, coords, setting, fixed, unaligned, im_size, patch_size, multiplier):
     p = 0
     # This is used to ensure that if the same pair of objects is being used in multiple stimuli,
@@ -175,25 +156,235 @@ def create_stimuli(pairs, coords, setting, fixed, unaligned, im_size, patch_size
         p += 1
         if not fixed:
             placement_dict[key].append(obj_set)
+'''
+def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, stim_dir,
+                   patch_dir, condition):
+
+    obj_size = patch_size * multiplier
+
+    if unaligned:  # Place randomly
+        coords = np.linspace(0, im_size - obj_size,
+                             num=(im_size - obj_size), dtype=int)
+    else:  # Place in ViT patch grid
+        coords = np.linspace(0, im_size, num=(im_size // patch_size), endpoint=False,
+                             dtype=int)
+        new_coords = []
+        for i in range(0, len(coords) - multiplier + 1, multiplier):
+            new_coords.append(coords[i])
+
+        coords = new_coords
+        possible_coords = list(itertools.product(coords, repeat=k))
+
+    n_per_class = n // 2
+
+    if n_per_class <= len(objects):
+        obj_sample = random.sample(objects, k=n_per_class)  # Objects to use
+
+        all_different_pairs = list(itertools.combinations(obj_sample, k))
+        different_sample = random.sample(all_different_pairs, k=n_per_class)
+
+        same_pairs = {tuple([o] * k): [] for o in obj_sample}
+        different_pairs = {o: [] for o in different_sample}
+
+        # Assign positions for each object pair: one position each
+        for pair in same_pairs.keys():
+            if not unaligned:
+                c = random.sample(possible_coords, k=k)
+                same_pairs[pair].append(c)
+            else:  # Code needs to be altered for k > 2
+                c1 = random.sample(list(coords), k=2)
+                c2 = random.sample(list(coords), k=2)
+
+                # Ensure there is no overlap
+                while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                        and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                    c2 = random.sample(list(coords), k=2)
+
+                same_pairs[pair].append([c1, c2])
+
+        for pair in different_pairs.keys():
+            if not unaligned:
+                c = random.sample(possible_coords, k=k)
+                different_pairs[pair].append(c)
+            else:  # Code needs to be altered for k > 2
+                c1 = tuple(random.sample(list(coords), k=2))
+                c2 = tuple(random.sample(list(coords), k=2))
+
+                # Ensure there is no overlap
+                while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                        and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                    c2 = tuple(random.sample(list(coords), k=2))
+
+                different_pairs[pair].append([c1, c2])
+    else:
+        all_different_pairs = list(itertools.combinations(objects, k))
+        different_sample = random.sample(all_different_pairs, k=len(objects))
+
+        same_pairs = {tuple([o] * k): [] for o in objects}
+        different_pairs = {o: [] for o in different_sample}
+
+        n_same = len(objects)
+
+        # Assign at least one position to each same pair
+        for pair in same_pairs.keys():
+            if not unaligned:
+                c = random.sample(possible_coords, k=k)
+                same_pairs[pair].append(c)
+            else:  # Code needs to be altered for k > 2
+                c1 = tuple(random.sample(list(coords), k=2))
+                c2 = tuple(random.sample(list(coords), k=2))
+
+                # Ensure there is no overlap
+                while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                        and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                    c2 = tuple(random.sample(list(coords), k=2))
+
+                same_pairs[pair].append([c1, c2])
+
+        # Generate unique positions for pairs until desired number is achieved
+        same_keys = list(same_pairs.keys())
+        different_keys = list(different_pairs.keys())
+
+        same_counts = [1] * n_same
+
+        while n_same < n_per_class:
+            key = random.choice(same_keys)
+
+            if not unaligned:
+                while len(same_pairs[key]) == len(possible_coords):
+                    key = random.choice(same_keys)
+
+            idx = same_keys.index(key)
+
+            existing_positions = [set(c) for c in same_pairs[key]]
+
+            if not unaligned:
+                c = random.sample(possible_coords, k=k)
+
+                while set(c) in existing_positions:  # Ensure unique position
+                    c = random.sample(possible_coords, k=k)
+
+                same_pairs[key].append(c)
+            else:  # Code needs to be altered for k > 2
+                c1 = tuple(random.sample(list(coords), k=2))
+                c2 = tuple(random.sample(list(coords), k=2))
+
+                # Ensure there is no overlap
+                while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                        and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                    c2 = tuple(random.sample(list(coords), k=2))
+
+                while set([c1, c2]) in existing_positions:  # Ensure unique position
+                    c1 = tuple(random.sample(list(coords), k=2))
+                    c2 = tuple(random.sample(list(coords), k=2))
+
+                    # Ensure there is no overlap
+                    while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                            and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                        c2 = tuple(random.sample(list(coords), k=2))
+
+                same_pairs[key].append([c1, c2])
+
+            n_same += 1
+            same_counts[idx] += 1
+
+        assert sum(same_counts) == n_per_class
+
+        for i in range(len(different_keys)):
+            key = different_keys[i]
+            count = same_counts[i]
+
+            for j in range(count):
+                existing_positions = [set(c) for c in different_pairs[key]]
+
+                if not unaligned:
+                    c = random.sample(possible_coords, k=k)
+
+                    while set(c) in existing_positions:  # Ensure unique position
+                        c = random.sample(possible_coords, k=k)
+
+                    different_pairs[key].append(c)
+                else:  # Code needs to be altered for k > 2
+                    c1 = tuple(random.sample(list(coords), k=2))
+                    c2 = tuple(random.sample(list(coords), k=2))
+
+                    # Ensure there is no overlap
+                    while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                            and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                        c2 = tuple(random.sample(list(coords), k=2))
+
+                    while set([c1, c2]) in existing_positions:  # Ensure unique position
+                        c1 = tuple(random.sample(list(coords), k=2))
+                        c2 = tuple(random.sample(list(coords), k=2))
+
+                        # Ensure there is no overlap
+                        while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                                and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                            c2 = tuple(random.sample(list(coords), k=2))
+
+                    different_pairs[key].append([c1, c2])
+
+    # Create the stimuli generated above
+    object_ims = {}
+
+    for o in objects:
+        im = Image.open('{0}/{1}'.format(stim_dir, o))
+        im = im.resize((obj_size, obj_size))
+        object_ims[o] = im
+
+    for sd_class, dict in zip(['same', 'different'], [same_pairs, different_pairs]):
+
+        setting = '{0}/{1}/{2}'.format(patch_dir, condition, sd_class)
+
+        for key in dict.keys():
+            positions = dict[key]
+
+            for i in range(len(positions)):
+                p = positions[i]
+                base = Image.new('RGB', (im_size, im_size), (255, 255, 255))
+
+                # Needs to be altered for k > 2
+                obj1 = key[0]
+                obj2 = key[1]
+                objs = [obj1, obj2]
+
+                for c in range(len(p)):
+                    base.paste(object_ims[objs[c]], box=p[c])
+
+                base.save('{0}/{1}_{2}_{3}.png'.format(setting, obj1[:-4], obj2[:-4], i))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate data.')
     parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
+    parser.add_argument('--n_train', type=int, default=6400,
+                        help='Total # of training stimuli. eg. if n_train=6400, a dataset'
+                             'will be generated with 3200 same and 3200 different stimuli.'
+                             'Brady lab: 6400, Developmental: 1024.')
+    parser.add_argument('--n_val', type=int, default=640,
+                        help='Total # validation stimuli. Brady lab: 640, Developmental: 256.')
+    parser.add_argument('--n_test', type=int, default=640,
+                        help='Total # test stimuli. Brady lab: 640, Developmental: 256.')
     parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
-    parser.add_argument('--fixed', action='store_true', default=False,
-                        help='Fix the objects, which are randomly placed by default.')
     parser.add_argument('--unaligned', action='store_true', default=False,
-                        help='Misalign the objects from ViT patches.')
+                        help='Misalign the objects from ViT patches (ie. place randomly).')
     parser.add_argument('--multiplier', type=int, default=1, help='Factor by which to scale up '
                                                                   'stimulus size.')
     parser.add_argument('--stim_dir', type=str, help='Stimulus directory.', default='OBJECTSALL')
 
     args = parser.parse_args()
 
-    fixed = args.fixed  # False = objects are randomly placed
+    # Command line arguments
+    patch_size = args.patch_size  # Object size: patch_size x patch_size
+    n_train = args.n_train  # Size of training set
+    n_val = args.n_val  # Size of validation set
+    n_test = args.n_test  # Size of test set
+    k = args.k  # Number of objects per image
     unaligned = args.unaligned  # False = objects align with ViT patches
+    multiplier = args.multiplier
+    stim_dir = args.stim_dir
 
+    '''
     # Brady Lab:
     n_train = 1920  # Max number of unique objects to present during training
     n_val = 240  # Max number of unique objects to present during validation
@@ -201,7 +392,6 @@ if __name__ == "__main__":
     n = 3200  # Number of different stimuli to create. Total # stimuli = n*2.
     n_2 = 320
 
-    '''
     # Developmental:
     n_train = 204
     n_val = 26
@@ -210,15 +400,12 @@ if __name__ == "__main__":
     n_2 = 128
     '''
 
-    k = args.k  # Number of objects per image
+    # Other parameters
     im_size = 224  # Size of base image
-    patch_size = args.patch_size  # Object size
-    multiplier = args.multiplier
-    stim_dir = args.stim_dir
 
-    assert not (fixed and unaligned)
     assert im_size % patch_size == 0
 
+    # Make directories
     try:
         os.mkdir('stimuli')
     except FileExistsError:
@@ -234,9 +421,7 @@ if __name__ == "__main__":
         except FileExistsError:
             pass
 
-    if fixed:
-        pos_dir = 'stimuli/{0}fixed'.format(stim_subdir)
-    elif unaligned:
+    if unaligned:
         pos_dir = 'stimuli/{0}unaligned'.format(stim_subdir)
     else:
         pos_dir = 'stimuli/{0}aligned'.format(stim_subdir)
@@ -260,25 +445,80 @@ if __name__ == "__main__":
 
     patch_dir = patch_dir + '/' + str(k)
 
+    for condition in ['train', 'test', 'val']:
+        try:
+            os.mkdir('{0}/{1}'.format(patch_dir, condition))
+        except FileExistsError:
+            pass
+
+        try:
+            os.mkdir('{0}/{1}/same'.format(patch_dir, condition))
+        except FileExistsError:
+            pass
+
+        try:
+            os.mkdir('{0}/{1}/different'.format(patch_dir, condition))
+        except FileExistsError:
+            pass
+
+    # Collect object image paths
     object_files = [f for f in os.listdir(stim_dir) if os.path.isfile(os.path.join(stim_dir, f))
                     and f != '.DS_Store']
 
+    # Compute number of unique objects that should be allocated to train/val/test sets
+    percent_train = n_train / (n_train + n_val + n_test)
+    percent_val = n_val / (n_train + n_val + n_test)
+    percent_test = n_test / (n_train + n_val + n_test)
+
+    n_unique = len(object_files)
+    n_unique_train = floor(n_unique * percent_train)
+    n_unique_val = floor(n_unique * percent_val)
+    n_unique_test = floor(n_unique * percent_test)
+
+    '''
     object_files_train = random.sample(object_files, k=n_train)
     object_files_val = [x for x in object_files if x not in object_files_train]
     object_files_test = random.sample(object_files_val, k=n_test)
+    '''
 
+    # Allocate unique objects
+    ofs = object_files  # Copy of object_files to sample from
+
+    object_files_train = random.sample(ofs, k=n_unique_train)
+    ofs = [o for o in ofs if o not in object_files_train]
+
+    object_files_val = random.sample(ofs, k=n_unique_val)
+    ofs = [o for o in ofs if o not in object_files_val]
+
+    object_files_test = random.sample(ofs, k=n_unique_test)
+
+    '''
     for x in object_files_test:
         object_files_val.remove(x)
 
     object_files_val = random.sample(object_files_val, k=n_val)
 
+
     assert len(object_files_train) == n_train
     assert len(object_files_test) == n_test
     assert len(object_files_val) == n_val
+    '''
+
+    assert len(object_files_train) == n_unique_train
+    assert len(object_files_val) == n_unique_val
+    assert len(object_files_test) == n_unique_test
     assert set(object_files_train).isdisjoint(object_files_test) \
            and set(object_files_train).isdisjoint(object_files_val) \
            and set(object_files_test).isdisjoint(object_files_val)
 
+    create_stimuli(k, n_train, object_files_train, unaligned, patch_size, multiplier,
+                   im_size, stim_dir, patch_dir, 'train')
+    create_stimuli(k, n_val, object_files_val, unaligned, patch_size, multiplier,
+                   im_size, stim_dir, patch_dir, 'val')
+    create_stimuli(k, n_test, object_files_test, unaligned, patch_size, multiplier,
+                   im_size, stim_dir, patch_dir, 'test')
+
+    '''
     object_ims = {}
 
     for o in object_files:
@@ -286,6 +526,8 @@ if __name__ == "__main__":
         im = im.resize((patch_size * multiplier, patch_size * multiplier))
         object_ims[o] = im
 
+    '''
+    '''
     train_different_pairs, train_same_pairs = initialize_pairs(k, n, object_files_train,
                                                                (patch_size * multiplier),
                                                                im_size)
@@ -350,134 +592,4 @@ if __name__ == "__main__":
     for pairs, condition in zip(same_list, ['train', 'test', 'val']):
         create_stimuli(pairs, coords, '{0}/{1}/same'.format(patch_dir, condition),
                        fixed, unaligned, im_size, patch_size, multiplier)
-
-    '''
-    p = 0
-    
-    for pair in train_pairs:
-        object_coords = []
-        base = Image.new('RGB', (im_size, im_size), (255, 255, 255))
-        same = all(x == pair[0] for x in pair)
-    
-        if same:
-            setting = '{0}/{1}/same'.format(patch_dir, 'train')
-        else:
-            setting = '{0}/{1}/different'.format(patch_dir, 'train')
-    
-        for i in range(k):
-            if fixed:
-                c = coords[i]
-            elif unaligned:
-                c = random.sample(list(coords), k=2)
-    
-                while True:
-                    for o in object_coords:
-                        if (c[0] >= o[0] and c[0] <= o[0] + patch_size) or (c[1] >= o[1] and c[1] <= o[1] + patch_size):
-                            c = random.sample(list(coords), k=2)
-                            break
-                    break
-            else:  # Randomly position objects
-                c = random.sample(list(coords), k=2)
-    
-                # Do not repeat object positions
-                while c in object_coords:
-                    c = random.sample(list(coords), k=2)
-    
-            object_coords.append(c)
-    
-        for c in range(len(object_coords)):
-            base.paste(object_ims[pair[c]], box=object_coords[c])
-    
-        base.save('{0}/{1}_{2}.png'.format(setting, p, k))
-        p += 1
-    
-    for pair in test_pairs:
-        object_coords = []
-        base = Image.new('RGB', (im_size, im_size), (255, 255, 255))
-        same = all(x == pair[0] for x in pair)
-    
-        if same:
-            setting = '{0}/{1}/same'.format(patch_dir, 'test')
-        else:
-            if not repetitions:
-                if len(pair) != len(set(pair)):  # Repeated objects
-                    continue
-    
-            if c_test == n_test:
-                continue
-    
-            setting = '{0}/{1}/different'.format(patch_dir, 'test')
-            c_test += 1
-    
-        for i in range(k):
-            if fixed:
-                c = coords[i]
-            elif unaligned:
-                c = random.sample(list(coords), k=2)
-    
-                while True:
-                    for o in object_coords:
-                        if (c[0] >= o[0] and c[0] <= o[0] + patch_size) or (c[1] >= o[1] and c[1] <= o[1] + patch_size):
-                            c = random.sample(list(coords), k=2)
-                            break
-                    break
-            else:  # Randomly position objects
-                c = random.sample(list(coords), k=2)
-    
-                # Do not repeat object positions
-                while c in object_coords:
-                    c = random.sample(list(coords), k=2)
-    
-            object_coords.append(c)
-    
-        for c in range(len(object_coords)):
-            base.paste(object_ims[pair[c]], box=object_coords[c])
-    
-        base.save('{0}/{1}_{2}.png'.format(setting, p, k))
-        p += 1
-    
-    for pair in val_pairs:
-        object_coords = []
-        base = Image.new('RGB', (im_size, im_size), (255, 255, 255))
-        same = all(x == pair[0] for x in pair)
-    
-        if same:
-            setting = '{0}/{1}/same'.format(patch_dir, 'val')
-        else:
-            if not repetitions:
-                if len(pair) != len(set(pair)):  # Repeated objects
-                    continue
-    
-            if c_val == n_val:
-                continue
-    
-            setting = '{0}/{1}/different'.format(patch_dir, 'val')
-            c_val += 1
-    
-        for i in range(k):
-            if fixed:
-                c = coords[i]
-            elif unaligned:
-                c = random.sample(list(coords), k=2)
-    
-                while True:
-                    for o in object_coords:
-                        if (c[0] >= o[0] and c[0] <= o[0] + patch_size) or (c[1] >= o[1] and c[1] <= o[1] + patch_size):
-                            c = random.sample(list(coords), k=2)
-                            break
-                    break
-            else:  # Randomly position objects
-                c = random.sample(list(coords), k=2)
-    
-                # Do not repeat object positions
-                while c in object_coords:
-                    c = random.sample(list(coords), k=2)
-    
-            object_coords.append(c)
-    
-        for c in range(len(object_coords)):
-            base.paste(object_ims[pair[c]], box=object_coords[c])
-    
-        base.save('{0}/{1}_{2}.png'.format(setting, p, k))
-        p += 1
     '''

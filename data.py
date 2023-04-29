@@ -28,10 +28,12 @@ def load_dataset(root_dir):
 
 
 class SameDifferentDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir, transform=None, rotation=False, scaling=False):
         self.root_dir = root_dir
         self.im_dict = load_dataset(root_dir)
         self.transform = transform
+        self.rotation = rotation
+        self.scaling = scaling
 
     def __len__(self):
         return len(list(self.im_dict.keys()))
@@ -53,7 +55,7 @@ class SameDifferentDataset(Dataset):
 
 
 def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, stim_dir,
-                   patch_dir, condition):
+                   patch_dir, condition, rotation=False, scaling=False):
     '''
     Creates n same_different stimuli with (n // 2) stimuli assigned to each class. If
     n > the number of unique objects used to create the dataset, then randomly selected
@@ -248,7 +250,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
     object_ims = {}
 
     for o in objects:
-        im = Image.open('{0}/{1}'.format(stim_dir, o))
+        im = Image.open('stimuli/source/{0}/{1}'.format(stim_dir, o))
         im = im.resize((obj_size, obj_size))
         object_ims[o] = im
 
@@ -280,17 +282,22 @@ if __name__ == "__main__":
     parser.add_argument('--n_train', type=int, default=6400,
                         help='Total # of training stimuli. eg. if n_train=6400, a dataset'
                              'will be generated with 3200 same and 3200 different stimuli.'
-                             'Brady lab: 6400, Developmental: 1024.')
+                             'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
     parser.add_argument('--n_val', type=int, default=640,
-                        help='Total # validation stimuli. Brady lab: 640, Developmental: 256.')
+                        help='Total # validation stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
     parser.add_argument('--n_test', type=int, default=640,
-                        help='Total # test stimuli. Brady lab: 640, Developmental: 256.')
+                        help='Total # test stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
     parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
     parser.add_argument('--unaligned', action='store_true', default=False,
                         help='Misalign the objects from ViT patches (ie. place randomly).')
     parser.add_argument('--multiplier', type=int, default=1, help='Factor by which to scale up '
                                                                   'stimulus size.')
-    parser.add_argument('--stim_dir', type=str, help='Stimulus directory.', default='OBJECTSALL')
+    parser.add_argument('--stim_dir', type=str, help='Stimulus subdirectory name (inside stimuli/source).', 
+                        default='OBJECTSALL')
+    parser.add_argument('--rotation', action='store_true', default=False,
+                        help='Randomly rotate the objects in the stimuli.')
+    parser.add_argument('--scaling', action='store_true', default=False,
+                        help='Randomly scale the objects in the stimuli.')
 
     args = parser.parse_args()
 
@@ -303,11 +310,21 @@ if __name__ == "__main__":
     unaligned = args.unaligned  # False = objects align with ViT patches
     multiplier = args.multiplier
     stim_dir = args.stim_dir
+    rotation = args.rotation
+    scaling = args.scaling
 
     # Other parameters
     im_size = 224  # Size of base image
 
     assert im_size % patch_size == 0
+    
+    aug_str = ''
+    if rotation:
+        aug_str += 'R'
+    if scaling:
+        aug_str += 'S'
+    if len(aug_str) == 0:
+        aug_str = 'N'
 
     # Make directories
     try:
@@ -334,8 +351,15 @@ if __name__ == "__main__":
         os.mkdir(pos_dir)
     except FileExistsError:
         pass
+    
+    size_dir = '{0}/{1}'.format(pos_dir, f'trainsize_{n_train}')
+    
+    try:
+        os.mkdir(size_dir)
+    except FileExistsError:
+        pass
 
-    patch_dir = '{0}/{1}x{1}'.format(pos_dir, patch_size * multiplier)
+    patch_dir = '{0}/{1}x{1}'.format(size_dir, patch_size * multiplier)
 
     try:
         os.mkdir(patch_dir)
@@ -348,6 +372,13 @@ if __name__ == "__main__":
         pass
 
     patch_dir = patch_dir + '/' + str(k)
+    
+    try:
+        os.mkdir('{0}/{1}'.format(patch_dir, aug_str))
+    except FileExistsError:
+        pass
+    
+    patch_dir = patch_dir + '/' + aug_str
 
     for condition in ['train', 'test', 'val']:
         try:
@@ -366,8 +397,8 @@ if __name__ == "__main__":
             pass
 
     # Collect object image paths
-    object_files = [f for f in os.listdir(stim_dir) if os.path.isfile(os.path.join(stim_dir, f))
-                    and f != '.DS_Store']
+    object_files = [f for f in os.listdir(f'stimuli/source/{stim_dir}') 
+                    if os.path.isfile(os.path.join(f'stimuli/source/{stim_dir}', f)) and f != '.DS_Store']
 
     # Compute number of unique objects that should be allocated to train/val/test sets
     percent_train = n_train / (n_train + n_val + n_test)
@@ -398,8 +429,8 @@ if __name__ == "__main__":
            and set(object_files_test).isdisjoint(object_files_val)
 
     create_stimuli(k, n_train, object_files_train, unaligned, patch_size, multiplier,
-                   im_size, stim_dir, patch_dir, 'train')
+                   im_size, stim_dir, patch_dir, 'train', rotation=rotation, scaling=scaling)
     create_stimuli(k, n_val, object_files_val, unaligned, patch_size, multiplier,
-                   im_size, stim_dir, patch_dir, 'val')
+                   im_size, stim_dir, patch_dir, 'val', rotation=rotation, scaling=scaling)
     create_stimuli(k, n_test, object_files_test, unaligned, patch_size, multiplier,
-                   im_size, stim_dir, patch_dir, 'test')
+                   im_size, stim_dir, patch_dir, 'test', rotation=rotation, scaling=scaling)

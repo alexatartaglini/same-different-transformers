@@ -145,16 +145,16 @@ parser.add_argument('-vd','--val_datasets', nargs='+', required=False, default=[
                     help='Names of all out-of-distribution stimulus subdirectories to draw validation datasets from.')
 parser.add_argument('--n_train', type=int, default=6400, help='Size of training dataset to use.' 
                     'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
-parser.add_argument('--n_val', type=int, default=640,
-                    help='Total # validation stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
-parser.add_argument('--n_test', type=int, default=640,
-                    help='Total # test stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
+parser.add_argument('--n_val', type=int, default=-1,
+                    help='Total # validation stimuli. Default: equal to n_train.')
+parser.add_argument('--n_test', type=int, default=-1,
+                    help='Total # test stimuli. Default: equal to n_train.')
 parser.add_argument('--n_train_ood', nargs='+', required=False, default=[1024, 2088],
                     help='Size of OOD training sets.')
-parser.add_argument('--n_val_ood', nargs='+', required=False, default=[256, 522],
-                    help='Size of OOD validation sets.')
-parser.add_argument('--n_test_ood', nargs='+', required=False, default=[256, 522],
-                    help='Size of OOD test sets.')
+parser.add_argument('--n_val_ood', nargs='+', required=False, default=[],
+                    help='Size of OOD validation sets. Default: equal to n_train_ood.')
+parser.add_argument('--n_test_ood', nargs='+', required=False, default=[],
+                    help='Size of OOD test sets. Default: equal to n_train_ood.')
 parser.add_argument('--rotation', action='store_true', default=False,
                     help='Randomly rotate the objects in the stimuli.')
 parser.add_argument('--scaling', action='store_true', default=False,
@@ -184,6 +184,17 @@ n_test_ood = args.n_test_ood
 rotation = args.rotation
 scaling = args.scaling
 
+# Default behavior for n_val, n_test
+if n_val == -1:
+    n_val = n_train
+if n_test == -1:
+    n_test = n_train
+if len(n_val_ood) == 0:
+    n_val_ood = n_train_ood
+if len(n_test_ood) == 0:
+    n_test_ood = n_train_ood
+
+
 if model_type == 'vit':
     if patch_size == 16:
         multiplier = multiplier*2
@@ -202,6 +213,8 @@ label_to_int = {'different': 0, 'same': 1}
 
 # Check arguments
 assert len(n_train_ood) == len(vds)
+assert len(n_test_ood) == len(vds)
+assert len(n_val_ood) == len(vds)
 assert im_size % patch_size == 0
 assert k == 2 or k == 4 or k == 8
 assert model_type == 'resnet' or model_type == 'vit'

@@ -407,10 +407,10 @@ if __name__ == "__main__":
                         help='Total # of training stimuli. eg. if n_train=6400, a dataset'
                              'will be generated with 3200 same and 3200 different stimuli.'
                              'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
-    parser.add_argument('--n_val', type=int, default=640,
-                        help='Total # validation stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
-    parser.add_argument('--n_test', type=int, default=640,
-                        help='Total # test stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
+    parser.add_argument('--n_val', type=int, default=-1,
+                        help='Total # validation stimuli. Default: equal to n_train.')
+    parser.add_argument('--n_test', type=int, default=-1,
+                        help='Total # test stimuli. Default: equal to n_train.')
     parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
     parser.add_argument('--unaligned', action='store_true', default=False,
                         help='Misalign the objects from ViT patches (ie. place randomly).')
@@ -436,5 +436,11 @@ if __name__ == "__main__":
     stim_dir = args.stim_dir
     rotation = args.rotation
     scaling = args.scaling
+    
+    # Default behavior for n_val, n_test
+    if n_val == -1:
+        n_val = n_train
+    if n_test == -1:
+        n_test = n_train
 
     call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling)

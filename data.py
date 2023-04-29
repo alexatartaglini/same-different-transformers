@@ -276,43 +276,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
                 base.save('{0}/{1}_{2}_{3}.png'.format(setting, obj1[:-4], obj2[:-4], i))
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Generate data.')
-    parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
-    parser.add_argument('--n_train', type=int, default=6400,
-                        help='Total # of training stimuli. eg. if n_train=6400, a dataset'
-                             'will be generated with 3200 same and 3200 different stimuli.'
-                             'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
-    parser.add_argument('--n_val', type=int, default=640,
-                        help='Total # validation stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
-    parser.add_argument('--n_test', type=int, default=640,
-                        help='Total # test stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
-    parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
-    parser.add_argument('--unaligned', action='store_true', default=False,
-                        help='Misalign the objects from ViT patches (ie. place randomly).')
-    parser.add_argument('--multiplier', type=int, default=1, help='Factor by which to scale up '
-                                                                  'stimulus size.')
-    parser.add_argument('--stim_dir', type=str, help='Stimulus subdirectory name (inside stimuli/source).', 
-                        default='OBJECTSALL')
-    parser.add_argument('--rotation', action='store_true', default=False,
-                        help='Randomly rotate the objects in the stimuli.')
-    parser.add_argument('--scaling', action='store_true', default=False,
-                        help='Randomly scale the objects in the stimuli.')
-
-    args = parser.parse_args()
-
-    # Command line arguments
-    patch_size = args.patch_size  # Object size: patch_size x patch_size
-    n_train = args.n_train  # Size of training set
-    n_val = args.n_val  # Size of validation set
-    n_test = args.n_test  # Size of test set
-    k = args.k  # Number of objects per image
-    unaligned = args.unaligned  # False = objects align with ViT patches
-    multiplier = args.multiplier
-    stim_dir = args.stim_dir
-    rotation = args.rotation
-    scaling = args.scaling
-
+def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling):
     # Other parameters
     im_size = 224  # Size of base image
 
@@ -434,3 +398,43 @@ if __name__ == "__main__":
                    im_size, stim_dir, patch_dir, 'val', rotation=rotation, scaling=scaling)
     create_stimuli(k, n_test, object_files_test, unaligned, patch_size, multiplier,
                    im_size, stim_dir, patch_dir, 'test', rotation=rotation, scaling=scaling)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Generate data.')
+    parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
+    parser.add_argument('--n_train', type=int, default=6400,
+                        help='Total # of training stimuli. eg. if n_train=6400, a dataset'
+                             'will be generated with 3200 same and 3200 different stimuli.'
+                             'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
+    parser.add_argument('--n_val', type=int, default=640,
+                        help='Total # validation stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
+    parser.add_argument('--n_test', type=int, default=640,
+                        help='Total # test stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
+    parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
+    parser.add_argument('--unaligned', action='store_true', default=False,
+                        help='Misalign the objects from ViT patches (ie. place randomly).')
+    parser.add_argument('--multiplier', type=int, default=1, help='Factor by which to scale up '
+                                                                  'stimulus size.')
+    parser.add_argument('--stim_dir', type=str, help='Stimulus subdirectory name (inside stimuli/source).', 
+                        default='OBJECTSALL')
+    parser.add_argument('--rotation', action='store_true', default=False,
+                        help='Randomly rotate the objects in the stimuli.')
+    parser.add_argument('--scaling', action='store_true', default=False,
+                        help='Randomly scale the objects in the stimuli.')
+
+    args = parser.parse_args()
+
+    # Command line arguments
+    patch_size = args.patch_size  # Object size: patch_size x patch_size
+    n_train = args.n_train  # Size of training set
+    n_val = args.n_val  # Size of validation set
+    n_test = args.n_test  # Size of test set
+    k = args.k  # Number of objects per image
+    unaligned = args.unaligned  # False = objects align with ViT patches
+    multiplier = args.multiplier
+    stim_dir = args.stim_dir
+    rotation = args.rotation
+    scaling = args.scaling
+
+    call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling)

@@ -1,7 +1,7 @@
 from torchvision import models, transforms
 from transformers import ViTFeatureExtractor, ViTForImageClassification
 from torch.utils.data import DataLoader
-from data import SameDifferentDataset
+from data import SameDifferentDataset, call_create_stimuli
 import torch.nn as nn
 import torch
 import argparse
@@ -143,9 +143,18 @@ parser.add_argument('--wandb_proj', type=str, default='same-different-transforme
                     help='Name of WandB project to store the run in.')
 parser.add_argument('-vd','--val_datasets', nargs='+', required=False, default=['DEVELOPMENTAL', 'OMNIGLOT'],
                     help='Names of all out-of-distribution stimulus subdirectories to draw validation datasets from.')
-parser.add_argument('--num_train', type=int, default=6400, help='Size of training dataset to use.')
-parser.add_argument('--num_val', nargs='+', required=False, default=[1024, 2088],
-                    help='Size of OOD validation sets (give the size of their training sets).')
+parser.add_argument('--n_train', type=int, default=6400, help='Size of training dataset to use.' 
+                    'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
+parser.add_argument('--n_val', type=int, default=640,
+                    help='Total # validation stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
+parser.add_argument('--n_test', type=int, default=640,
+                    help='Total # test stimuli. Brady lab: 640, Developmental: 256, Omniglot: 522.')
+parser.add_argument('--n_train_ood', nargs='+', required=False, default=[1024, 2088],
+                    help='Size of OOD training sets.')
+parser.add_argument('--n_val_ood', nargs='+', required=False, default=[256, 522],
+                    help='Size of OOD validation sets.')
+parser.add_argument('--n_test_ood', nargs='+', required=False, default=[256, 522],
+                    help='Size of OOD test sets.')
 parser.add_argument('--rotation', action='store_true', default=False,
                     help='Randomly rotate the objects in the stimuli.')
 parser.add_argument('--scaling', action='store_true', default=False,
@@ -166,8 +175,12 @@ feature_extract = args.feature_extract
 optim = args.optim
 wandb_proj = args.wandb_proj
 vds = args.val_datasets
-num_train = args.num_train
-num_val = args.num_val
+n_train = args.n_train
+n_val = args.n_val
+n_test = args.n_test
+n_train_ood = args.n_train_ood
+n_val_ood = args.n_val_ood
+n_test_ood = args.n_test_ood
 rotation = args.rotation
 scaling = args.scaling
 
@@ -188,7 +201,7 @@ int_to_label = {0: 'different', 1: 'same'}
 label_to_int = {'different': 0, 'same': 1}
 
 # Check arguments
-assert len(num_val) == len(vds)
+assert len(n_train_ood) == len(vds)
 assert im_size % patch_size == 0
 assert k == 2 or k == 4 or k == 8
 assert model_type == 'resnet' or model_type == 'vit'
@@ -257,7 +270,7 @@ model = model.to(device)  # Move model to GPU if possible
 model_str += fe_string  # Add 'fe' if applicable
 model_str += '_{0}'.format(optim)  # Optimizer string
 
-path_elements = [model_str, pos_condition, 'trainsize_{}'.format(num_train), 
+path_elements = [model_str, pos_condition, 'trainsize_{}'.format(n_train), 
                  '{}x{}'.format(patch_size * multiplier, patch_size * multiplier), k, aug_str]
 
 for root in ['logs']:
@@ -270,10 +283,14 @@ for root in ['logs']:
             pass
         stub = '{0}/{1}'.format(stub, p)
 
-log_dir = 'logs/{0}/{1}/{2}/{3}x{3}/{4}/{5}'.format(model_str, pos_condition, f'trainsize_{num_train}', 
+log_dir = 'logs/{0}/{1}/{2}/{3}x{3}/{4}/{5}'.format(model_str, pos_condition, f'trainsize_{n_train}', 
                                                     patch_size * multiplier, k, aug_str)
-root_dir = 'stimuli/{0}/{1}/{2}x{2}/{3}/{4}'.format(pos_condition, f'trainsize_{num_train}', 
+root_dir = 'stimuli/{0}/{1}/{2}x{2}/{3}/{4}'.format(pos_condition, f'trainsize_{n_train}', 
                                                     patch_size * multiplier, k, aug_str)
+
+if not os.path.exists(root_dir):
+    call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, 
+                        'OBJECTSALL', rotation, scaling)
 
 # Extra information to store
 exp_config = {
@@ -287,13 +304,14 @@ exp_config = {
     'k': k,
     'aug': aug_str,
     'pos_condition': pos_condition,
-    'trainsize': num_train,
+    'trainsize': n_train,
     'train_device': device
 }
 
 # Initialize Weights & Biases project
 now = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
-wandb_str = '{0}_{1}_{2}_{3}x{3}_{4}_{5}'.format(model_str, pos_condition, f'trainsize_{num_train}', patch_size * multiplier, aug_str, now)
+wandb_str = '{0}_{1}_{2}_{3}x{3}_{4}_{5}'.format(model_str, pos_condition, f'trainsize{n_train}', 
+                                                 patch_size * multiplier, aug_str, now)
 wandb.init(project=wandb_proj, name=wandb_str, config=exp_config)
 
 # Create Datasets & DataLoaders
@@ -309,14 +327,19 @@ val_labels = ['in_distribution']
 
 # Construct OOD validation sets
 for v in range(len(vds)):
-    val_dataset_ood = SameDifferentDataset(
-        'stimuli/{0}/{1}/{2}/{3}x{3}/{4}/{5}/val'.format(vds[v], pos_condition, f'trainsize_{num_val[v]}', patch_size * multiplier, k, aug_str),
-        transform=transform, rotation=rotation, scaling=scaling)
+    val_dir = 'stimuli/{0}/{1}/{2}/{3}x{3}/{4}/{5}/val'.format(vds[v], pos_condition, f'trainsize_{n_train_ood[v]}', 
+                                                               patch_size * multiplier, k, aug_str)
+    
+    if not os.path.exists(val_dir):
+        call_create_stimuli(patch_size, n_train, n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
+                            vds[v], rotation, scaling)
+    
+    val_dataset_ood = SameDifferentDataset(val_dir, transform=transform, rotation=rotation, scaling=scaling)
     val_dataloader_ood = DataLoader(val_dataset_ood, batch_size=batch_size, shuffle=True)
     
     val_datasets.append(val_dataset_ood)
     val_dataloaders.append(val_dataloader_ood)
-    val_labels.append(v.lower())
+    val_labels.append(vds[v].lower())
 
 # Optimizer and scheduler
 if optim == 'adamw':

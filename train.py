@@ -56,11 +56,10 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
         epoch_acc = running_acc / dataset_size
         print('Epoch loss: {:.4f}'.format(epoch_loss))
         print('Epoch accuracy: {:.4f}'.format(epoch_acc))
+        print()
 
         metric_dict = {'epoch': epoch, 'loss': epoch_loss, 'acc': epoch_acc,
-                       'lr': scheduler.get_last_lr()[0]}
-
-        scheduler.step()
+                       'lr': optimizer.param_groups[0]['lr']}
 
         # Save the model
         torch.save(model.state_dict(), '{0}/model_{1}.pth'.format(log_dir, epoch))
@@ -72,15 +71,11 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
             val_dataset = val_datasets[i]
             val_label = val_labels[i]
 
-            print()
-            print('{0} validation step:'.format(val_label))
-
             with torch.no_grad():
                 running_loss_val = 0.0
                 running_acc_val = 0.0
 
                 for bi, (d, f) in enumerate(val_dataloader):
-                    print('\t{0}'.format(bi))
                     if model_type == 'vit':
                         inputs = d['pixel_values'].squeeze(1).to(device)
                     else:
@@ -104,17 +99,28 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
                 print('Validation: {0}'.format(val_label))
                 print('Val loss: {:.4f}'.format(epoch_loss_val))
                 print('Val acc: {:.4f}'.format(epoch_acc_val))
+                print()
 
                 metric_dict['val_loss_{0}'.format(val_label)] = epoch_loss_val
                 metric_dict['val_acc_{0}'.format(val_label)] = epoch_acc_val
+                
+        scheduler.step(metric_dict['val_acc_{}'.format(val_labels[i])])  # Reduce LR based on validation accuracy
 
         # Log metrics
         wandb.log(metric_dict)
 
     return model
 
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# Set device
+try:
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
+except AttributeError:  # if MPS is not available
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip-rn, clip-vit.',
@@ -133,13 +139,22 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers..')
 parser.add_argument('--optim', type=str, default='adamw',
                     help='Training optimizer, eg. adam, adamw, sgd.')
-
+parser.add_argument('--wandb_proj', type=str, default='same-different-transformers',
+                    help='Name of WandB project to store the run in.')
+parser.add_argument('-vd','--val_datasets', nargs='+', required=False, default=['DEVELOPMENTAL', 'OMNIGLOT'],
+                    help='Names of all out-of-distribution stimulus subdirectories to draw validation datasets from.')
+parser.add_argument('--num_train', type=int, default=6400, help='Size of training dataset to use.')
+parser.add_argument('--num_val', nargs='+', required=False, default=[1024, 2088],
+                    help='Size of OOD validation sets (give the size of their training sets).')
+parser.add_argument('--rotation', action='store_true', default=False,
+                    help='Randomly rotate the objects in the stimuli.')
+parser.add_argument('--scaling', action='store_true', default=False,
+                    help='Randomly scale the objects in the stimuli.')
 
 args = parser.parse_args()
 
 # Parse command line arguments
 model_type = args.model_type
-fixed = args.fixed
 unaligned = args.unaligned
 patch_size = args.patch_size
 k = args.k
@@ -149,6 +164,16 @@ num_epochs = args.num_epochs
 batch_size = args.batch_size
 feature_extract = args.feature_extract
 optim = args.optim
+wandb_proj = args.wandb_proj
+vds = args.val_datasets
+num_train = args.num_train
+num_val = args.num_val
+rotation = args.rotation
+scaling = args.scaling
+
+if model_type == 'vit':
+    if patch_size == 16:
+        multiplier = multiplier*2
 
 if feature_extract:
     fe_string = '_fe'
@@ -163,6 +188,7 @@ int_to_label = {0: 'different', 1: 'same'}
 label_to_int = {'different': 0, 'same': 1}
 
 # Check arguments
+assert len(num_val) == len(vds)
 assert im_size % patch_size == 0
 assert k == 2 or k == 4 or k == 8
 assert model_type == 'resnet' or model_type == 'vit'
@@ -177,6 +203,14 @@ if unaligned:
     pos_condition = 'unaligned'
 else:
     pos_condition = 'aligned'
+    
+aug_str = ''
+if rotation:
+    aug_str += 'R'
+if scaling:
+    aug_str += 'S'
+if len(aug_str) == 0:
+    aug_str = 'N'
 
 if model_type == 'resnet':
     model_str = 'resnet_{0}'.format(cnn_size)
@@ -223,7 +257,8 @@ model = model.to(device)  # Move model to GPU if possible
 model_str += fe_string  # Add 'fe' if applicable
 model_str += '_{0}'.format(optim)  # Optimizer string
 
-path_elements = [model_str, k, pos_condition, patch_size * multiplier]
+path_elements = [model_str, pos_condition, 'trainsize_{}'.format(num_train), 
+                 '{}x{}'.format(patch_size * multiplier, patch_size * multiplier), k, aug_str]
 
 for root in ['logs']:
     stub = root
@@ -235,15 +270,13 @@ for root in ['logs']:
             pass
         stub = '{0}/{1}'.format(stub, p)
 
-log_dir = 'logs/{0}/{1}/{2}/{3}'.format(model_str, k, pos_condition, patch_size * multiplier)
-root_dir = 'stimuli/{0}/{1}x{1}/{2}'.format(pos_condition, patch_size * multiplier, k)
+log_dir = 'logs/{0}/{1}/{2}/{3}x{3}/{4}/{5}'.format(model_str, pos_condition, f'trainsize_{num_train}', 
+                                                    patch_size * multiplier, k, aug_str)
+root_dir = 'stimuli/{0}/{1}/{2}x{2}/{3}/{4}'.format(pos_condition, f'trainsize_{num_train}', 
+                                                    patch_size * multiplier, k, aug_str)
 
-# Initialize Weights & Biases project
-now = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
-wandb_str = '{0}_{1}_{2}_{3}'.format(model_str, pos_condition, patch_size * multiplier, now)
-wandb.init(project=wandb_str, name=wandb_str)
-
-wandb.config = {
+# Extra information to store
+exp_config = {
     'model_type': model_str,
     'learning_rate': lr,
     'gamma': decay_rate,
@@ -252,24 +285,38 @@ wandb.config = {
     'optimizer': optim,
     'stimulus_size': '{0}x{0}'.format(patch_size * multiplier),
     'k': k,
+    'aug': aug_str,
     'pos_condition': pos_condition,
+    'trainsize': num_train,
+    'train_device': device
 }
 
-# Create datasets/dataloaders
-train_dataset = SameDifferentDataset(root_dir + '/train', transform=transform)
-val_dataset = SameDifferentDataset(root_dir + '/val', transform=transform)
-val_dataset_abstract = SameDifferentDataset(
-    'stimuli/DEVELOPMENTAL/{0}/{1}x{1}/{2}/val'.format(pos_condition, patch_size * multiplier, k),
-    transform=transform)
+# Initialize Weights & Biases project
+now = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+wandb_str = '{0}_{1}_{2}_{3}x{3}_{4}_{5}'.format(model_str, pos_condition, f'trainsize_{num_train}', patch_size * multiplier, aug_str, now)
+wandb.init(project=wandb_proj, name=wandb_str, config=exp_config)
+
+# Create Datasets & DataLoaders
+train_dataset = SameDifferentDataset(root_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
+val_dataset = SameDifferentDataset(root_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
 
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
-val_dataloader_abstract = DataLoader(val_dataset_abstract, batch_size=batch_size, shuffle=True)
 
-val_datasets = [val_dataset, val_dataset_abstract]
-val_dataloaders = [val_dataloader, val_dataloader_abstract]
+val_datasets = [val_dataset]
+val_dataloaders = [val_dataloader]
+val_labels = ['in_distribution']
 
-val_labels = ['in_distribution', 'shape_bias']
+# Construct OOD validation sets
+for v in range(len(vds)):
+    val_dataset_ood = SameDifferentDataset(
+        'stimuli/{0}/{1}/{2}/{3}x{3}/{4}/{5}/val'.format(vds[v], pos_condition, f'trainsize_{num_val[v]}', patch_size * multiplier, k, aug_str),
+        transform=transform, rotation=rotation, scaling=scaling)
+    val_dataloader_ood = DataLoader(val_dataset_ood, batch_size=batch_size, shuffle=True)
+    
+    val_datasets.append(val_dataset_ood)
+    val_dataloaders.append(val_dataloader_ood)
+    val_labels.append(v.lower())
 
 # Optimizer and scheduler
 if optim == 'adamw':

@@ -247,33 +247,71 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
                     different_pairs[key].append([c1, c2])
 
     # Create the stimuli generated above
-    object_ims = {}
+    object_ims_all = {}
 
     for o in objects:
         im = Image.open('stimuli/source/{0}/{1}'.format(stim_dir, o))
         im = im.resize((obj_size, obj_size))
-        object_ims[o] = im
+        object_ims_all[o] = im
 
-    for sd_class, dict in zip(['same', 'different'], [same_pairs, different_pairs]):
+    for sd_class, item_dict in zip(['same', 'different'], [same_pairs, different_pairs]):
 
         setting = '{0}/{1}/{2}'.format(patch_dir, condition, sd_class)
 
-        for key in dict.keys():
-            positions = dict[key]
+        for key in item_dict.keys():
+            positions = item_dict[key]
 
             for i in range(len(positions)):
                 p = positions[i]
                 base = Image.new('RGB', (im_size, im_size), (255, 255, 255))
 
-                # Needs to be altered for k > 2
+                # TODO: fix for k > 2
                 obj1 = key[0]
                 obj2 = key[1]
-                objs = [obj1, obj2]
-
+                object_ims = [object_ims_all[obj1].copy(), object_ims_all[obj2].copy()]
+                
+                if scaling:
+                    scale_base = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
+                    scaled_obj_idx = random.choice([0, 1])
+                    scale_factor = random.uniform(0.45, 0.9)
+                    scaled_size = floor(obj_size * scale_factor)
+                    
+                    scaled_obj_im = object_ims[scaled_obj_idx].resize((scaled_size, scaled_size))
+                    scale_base.paste(scaled_obj_im, ((obj_size - scaled_size) // 2, (obj_size - scaled_size) // 2))
+                    object_ims[scaled_obj_idx] = scale_base
+                    
+                if rotation:
+                    for o in range(len(object_ims)):  # TODO: fix for k > 2
+                        not_o = int(not o)
+                        rotation_deg = random.randint(0, 359)
+                        
+                        rotated_obj_o = object_ims[o].rotate(rotation_deg, expand=1, fillcolor=(255, 255, 255))
+                        rotated_obj_not_o = object_ims[not_o].rotate(rotation_deg, expand=1, fillcolor=(255, 255, 255))
+                        
+                        if rotated_obj_o.size[0] != rotated_obj_o.size[1]:
+                            scale_base_o = Image.new('RGB', (max(rotated_obj_o.size), max(rotated_obj_o.size)), (255, 255, 255))
+                            scale_base_not_o = Image.new('RGB', (max(rotated_obj_o.size), max(rotated_obj_o.size)), (255, 255, 255))
+                            
+                            scale_base_o.paste(rotated_obj_o, ((max(rotated_obj_o.size) - rotated_obj_o.size[0]) // 2, 
+                                                              (max(rotated_obj_o.size) - rotated_obj_o.size[1]) // 2))
+                            scale_base_not_o.paste(rotated_obj_not_o, ((max(rotated_obj_o.size) - rotated_obj_o.size[0]) // 2, 
+                                                              (max(rotated_obj_o.size) - rotated_obj_o.size[1]) // 2))
+                            rotated_obj_o = scale_base_o
+                            rotated_obj_not_o = scale_base_not_o
+                        
+                        scale_base_o = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
+                        scale_base_not_o = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
+                        
+                        scale_base_o.paste(rotated_obj_o.resize((obj_size, obj_size)))  
+                        scale_base_not_o.paste(rotated_obj_not_o.resize((obj_size, obj_size)).rotate(360 - rotation_deg, fillcolor=(255, 255, 255)))
+                            
+                        object_ims[o] = scale_base_o
+                        object_ims[not_o] = scale_base_not_o
+                        
                 for c in range(len(p)):
-                    base.paste(object_ims[objs[c]], box=p[c])
+                    base.paste(object_ims[c], box=p[c])
 
-                base.save('{0}/{1}_{2}_{3}.png'.format(setting, obj1[:-4], obj2[:-4], i))
+                base.save('{0}/{1}_{2}_{3}.png'.format(setting, obj1.split('.')[0], obj2.split('.')[0], i))
 
 
 def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling):

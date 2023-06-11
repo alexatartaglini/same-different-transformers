@@ -62,7 +62,7 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
                        'lr': optimizer.param_groups[0]['lr']}
 
         # Save the model
-        torch.save(model.state_dict(), '{0}/model_{1}.pth'.format(log_dir, epoch))
+        #torch.save(model.state_dict(), '{0}/model_{1}.pth'.format(log_dir, epoch))
 
         # Perform evaluations
         model.eval()
@@ -104,7 +104,7 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
                 metric_dict['val_loss_{0}'.format(val_label)] = epoch_loss_val
                 metric_dict['val_acc_{0}'.format(val_label)] = epoch_acc_val
                 
-        scheduler.step(metric_dict['val_acc_{}'.format(val_labels[i])])  # Reduce LR based on validation accuracy
+        scheduler.step(metric_dict['val_acc_in_distribution'])  # Reduce LR based on validation accuracy
 
         # Log metrics
         wandb.log(metric_dict)
@@ -149,7 +149,7 @@ parser.add_argument('--n_val', type=int, default=-1,
                     help='Total # validation stimuli. Default: equal to n_train.')
 parser.add_argument('--n_test', type=int, default=-1,
                     help='Total # test stimuli. Default: equal to n_train.')
-parser.add_argument('--n_train_ood', nargs='+', required=False, default=[1024, 2088],
+parser.add_argument('--n_train_ood', nargs='+', required=False, default=[6400, 6400],
                     help='Size of OOD training sets.')
 parser.add_argument('--n_val_ood', nargs='+', required=False, default=[],
                     help='Size of OOD validation sets. Default: equal to n_train_ood.')
@@ -344,7 +344,7 @@ for v in range(len(vds)):
                                                                patch_size * multiplier, k, aug_str)
     
     if not os.path.exists(val_dir):
-        call_create_stimuli(patch_size, n_train, n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
+        call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
                             vds[v], rotation, scaling)
     
     val_dataset_ood = SameDifferentDataset(val_dir, transform=transform, rotation=rotation, scaling=scaling)
@@ -363,7 +363,7 @@ elif optim == 'sgd':
     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 
 #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=num_epochs//3)
 
 # Run training loop + evaluations
 model = train_model(model, device, model_type, train_dataloader, len(train_dataset), batch_size,

@@ -1,5 +1,5 @@
 from torchvision import models, transforms
-from transformers import ViTImageProcessor, ViTForImageClassification, ViTConfig
+from transformers import ViTImageProcessor, ViTForImageClassification, ViTConfig, CLIPProcessor, CLIPModel
 from torch.utils.data import DataLoader
 from data import SameDifferentDataset, call_create_stimuli
 import torch.nn as nn
@@ -8,13 +8,26 @@ import argparse
 import os
 from sklearn.metrics import accuracy_score
 import wandb
-#from datetime import datetime
+import numpy as np
 
 
-def train_model(model, device, model_type, data_loader, dataset_size, batch_size, optimizer,
-                scheduler, num_epochs, log_dir, val_datasets, val_dataloaders, val_labels=None):
+def train_model(args, model, device, data_loader, dataset_size, optimizer,
+                scheduler, log_dir, val_datasets, val_dataloaders, test_data_at, 
+                test_table, val_labels=None):
+    
     if not val_labels:
         val_labels = list(range(len(val_dataloaders)))
+    
+    int_to_label = {0: 'different', 1: 'same'}
+    
+    model_type = args.model_type
+    batch_size = args.batch_size
+    num_epochs = args.num_epochs
+    save_model_freq = args.save_model_freq
+    log_preds_freq = args.log_preds_freq
+    
+    save_model_epochs = np.linspace(0, num_epochs, save_model_freq, dtype=int)
+    log_preds_epochs = np.linspace(0, num_epochs, log_preds_freq, dtype=int)
 
     criterion = nn.CrossEntropyLoss()
 
@@ -63,7 +76,8 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
                        'lr': optimizer.param_groups[0]['lr']}
 
         # Save the model
-        torch.save(model.state_dict(), f'{log_dir}/model_{epoch}_{lr}_{wandb.run.id}.pth')
+        if epoch in save_model_epochs:
+            torch.save(model.state_dict(), f'{log_dir}/model_{epoch}_{lr}_{wandb.run.id}.pth')
 
         # Perform evaluations
         model.eval()
@@ -88,7 +102,24 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
                         outputs = outputs.logits
 
                     loss = criterion(outputs, labels)
-                    acc = accuracy_score(labels.to('cpu'), outputs.to('cpu').argmax(1))
+                    preds = outputs.argmax(1)
+                    acc = accuracy_score(labels.to('cpu'), preds.to('cpu'))
+                    
+                    # Log error examples
+                    if epoch in log_preds_epochs:
+                        error_idx = (labels + preds == 1).cpu()
+                        error_ims = inputs[error_idx, :, :, :]
+                        error_paths = [name.split('/')[-1] for name in np.asarray(list(f), dtype=object)[error_idx]]
+                        error_preds = [int_to_label[p.item()] for p in preds[error_idx]]
+                        error_truths = [int_to_label[l.item()] for l in labels[error_idx]]
+                        same_scores = outputs[error_idx, 0]
+                        diff_scores = outputs[error_idx, 1]
+                        same_acc = len(labels[labels + preds == 2]) / len(labels[labels == 1])
+                        diff_acc = len(labels[labels + preds == 0]) / len(labels[labels == 0])
+                        for j in range(len(same_scores)):
+                            test_table.add_data(epoch, error_paths[j], wandb.Image(error_ims[j, :, :, :]),
+                                                val_label, error_preds[j], error_truths[j], same_scores[j], 
+                                                diff_scores[j], same_acc, diff_acc)
 
                     running_acc_val += acc * inputs.size(0)
                     running_loss_val += loss.item() * inputs.size(0)
@@ -104,7 +135,9 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
 
                 metric_dict['val_loss_{0}'.format(val_label)] = epoch_loss_val
                 metric_dict['val_acc_{0}'.format(val_label)] = epoch_acc_val
-                
+           
+        test_data_at.add(test_table, 'predictions')
+        wandb.run.log_artifact(test_data_at).wait() 
         scheduler.step(metric_dict[f'val_acc_{val_labels[0]}'])  # Reduce LR based on validation accuracy
 
         # Log metrics
@@ -137,6 +170,7 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers.')
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
+parser.add_argument('--clip', action='store_true', default=False, help='Use CLIP model.')
 
 # Training arguments
 parser.add_argument('--train_dataset', help='Name of the stimulus subdirectory to draw the training \
@@ -178,6 +212,14 @@ parser.add_argument('--n_val_ood', nargs='+', required=False, default=[],
 parser.add_argument('--n_test_ood', nargs='+', required=False, default=[],
                     help='Size of OOD test sets. Default: equal to n_train_ood.')
 
+# Paremeters for logging, storing models, etc.
+parser.add_argument('--save_model_freq', help='Number of times to save model checkpoints \
+                    throughout training. Saves are equally spaced from 0 to num_epoch.', type=int,
+                    default=3)
+parser.add_argument('--log_preds_freq', help='Number of times to log model predictions \
+                    on test sets throughout training. Saves are equally spaced from 0 to num_epochs.',
+                    type=int, default=3)
+
 args = parser.parse_args()
 
 # Parse command line arguments
@@ -188,6 +230,7 @@ patch_size = args.patch_size
 cnn_size = args.cnn_size
 feature_extract = args.feature_extract
 pretrained = args.pretrained
+clip = args.clip
 
 train_dataset_name = args.train_dataset
 val_datasets_names = args.val_datasets
@@ -301,20 +344,27 @@ if model_type == 'resnet':
     ])
 elif model_type == 'vit':
     model_string = 'vit_b{0}'.format(patch_size)
-    model_path = 'google/vit-base-patch{0}-{1}-in21k'.format(patch_size, im_size)
-
-    if pretrained:
-        model = ViTForImageClassification.from_pretrained(
-            model_path,
-            num_labels=2,
-            id2label=int_to_label,
-            label2id=label_to_int
-        )
-    else:
-        configuration = ViTConfig(patch_size=patch_size, image_size=im_size)
-        model = ViTForImageClassification(configuration)
+    
+    if clip:
+        model_path = 'openai/clip-vit-base-patch{patch_size}'
         
-    transform = ViTImageProcessor(do_resize=False)
+        if pretrained:
+            model = CLIPModel.from_pretrained(model_path)
+    else:
+        model_path = f'google/vit-base-patch{patch_size}-{im_size}-in21k'
+    
+        if pretrained:
+            model = ViTForImageClassification.from_pretrained(
+                model_path,
+                num_labels=2,
+                id2label=int_to_label,
+                label2id=label_to_int
+            )
+        else:
+            configuration = ViTConfig(patch_size=patch_size, image_size=im_size)
+            model = ViTForImageClassification(configuration)
+            
+        transform = ViTImageProcessor(do_resize=False)
 
     if feature_extract:
         for name, param in model.named_parameters():
@@ -389,7 +439,7 @@ elif lr_scheduler == 'exponential':
 
 # Information to store
 exp_config = {
-    'model_type': model_string,
+    'model_type': model_type,
     'patch_size': patch_size,
     'cnn_size': cnn_size,
     'feature_extract': feature_extract,
@@ -409,19 +459,20 @@ exp_config = {
     'stimulus_size': '{0}x{0}'.format(patch_size * multiplier),
 }
 
-# Initialize Weights & Biases project
+# Initialize Weights & Biases project & table
 wandb.init(project=wandb_proj, config=exp_config)
 
 run_id = wandb.run.id
 wandb.run.name = '{0}_{1}{2}_{3}_LR{4}_{5}'.format(model_string, train_dataset_name, n_train, aug_string, lr, run_id)
-'''
-now = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
-wandb_str = '{0}_{1}_{2}_{3}x{3}_{4}_{5}'.format(model_string, pos_string, f'trainsize{n_train}', 
-                                                 patch_size * multiplier, aug_string, now)
-wandb.init(project=wandb_proj, name=wandb_str, config=exp_config)
-'''
+
+# Log model predictions
+test_data_at = wandb.Artifact(f'test_errors_{run_id}', type='predictions')
+pred_columns = ['Training Epoch', 'File Name', 'Image', 'Dataset', 'Prediction',
+                'Truth', 'Same Score', 'Different Score', 'Same Accuracy', 
+                'Different Accuracy']
+test_table = wandb.Table(columns=pred_columns)
 
 # Run training loop + evaluations
-model = train_model(model, device, model_type, train_dataloader, len(train_dataset), batch_size,
-                    optimizer, scheduler, num_epochs, log_dir, val_datasets, val_dataloaders,
-                    val_labels)
+model = train_model(args, model, device, train_dataloader, len(train_dataset), 
+                    optimizer, scheduler, log_dir, val_datasets, val_dataloaders,
+                    test_data_at, test_table, val_labels)

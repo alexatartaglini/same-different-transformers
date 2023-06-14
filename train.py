@@ -105,7 +105,7 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
                 metric_dict['val_loss_{0}'.format(val_label)] = epoch_loss_val
                 metric_dict['val_acc_{0}'.format(val_label)] = epoch_acc_val
                 
-        scheduler.step(metric_dict['val_acc_in_distribution'])  # Reduce LR based on validation accuracy
+        scheduler.step(metric_dict[f'val_acc_{val_labels[0]}'])  # Reduce LR based on validation accuracy
 
         # Log metrics
         wandb.log(metric_dict)
@@ -360,7 +360,7 @@ val_datasets = [val_dataset]
 val_dataloaders = [val_dataloader]
 val_labels = [train_dataset_name]
 
-for v in range(len(val_datasets)):
+for v in range(len(val_datasets_names)):
     val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, f'trainsize_{n_train}')
     
     if not os.path.exists(val_dir):

@@ -1,4 +1,5 @@
 from PIL import Image
+import torch
 import numpy as np
 import os
 import random
@@ -34,6 +35,14 @@ class SameDifferentDataset(Dataset):
         self.transform = transform
         self.rotation = rotation
         self.scaling = scaling
+        
+        '''
+        if not str(type(self.transform)) == "<class 'torchvision.transforms.transforms.Compose'>":
+            self.image_mean = [self.transform.image_mean[i].to(torch.float32)
+                               for i in range(len(self.transform.image_mean))]
+            self.image_std = [self.transform.image_std[i].to(torch.float32)
+                               for i in range(len(self.transform.image_std))]
+        '''
 
     def __len__(self):
         return len(list(self.im_dict.keys()))
@@ -48,7 +57,7 @@ class SameDifferentDataset(Dataset):
                 item = self.transform(im)
                 item = {'image': item, 'label': label}
             else:
-                item = self.transform(im, return_tensors='pt')
+                item = self.transform.preprocess(np.array(im, dtype=np.float32), return_tensors='pt')
                 item['label'] = label
 
         return item, im_path
@@ -103,8 +112,18 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
         obj_sample = random.sample(objects, k=n_per_class)  # Objects to use
 
         all_different_pairs = list(itertools.combinations(obj_sample, k))
+        
+        # Make sure different stimuli are different in shape AND texture
+        if stim_dir == 'DEVELOPMENTAL':
+            for pair in all_different_pairs:
+                obj1 = pair[0].split('-')
+                obj2 = pair[1].split('-')
+                
+                if obj1[0] == obj2[0] or obj1[1] == obj2[1]:
+                    all_different_pairs.remove(pair)
+        
         different_sample = random.sample(all_different_pairs, k=n_per_class)
-
+            
         same_pairs = {tuple([o] * k): [] for o in obj_sample}
         different_pairs = {o: [] for o in different_sample}
 
@@ -140,6 +159,16 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
                 different_pairs[pair].append([c1, c2])
     else:
         all_different_pairs = list(itertools.combinations(objects, k))
+        
+        # Make sure different stimuli are different in shape AND texture
+        if stim_dir == 'DEVELOPMENTAL':
+            for pair in all_different_pairs:
+                obj1 = pair[0].split('-')
+                obj2 = pair[1].split('-')
+                
+                if obj1[0] == obj2[0] or obj1[1] == obj2[1]:
+                    all_different_pairs.remove(pair)
+        
         different_sample = random.sample(all_different_pairs, k=len(objects))
 
         same_pairs = {tuple([o] * k): [] for o in objects}
@@ -316,93 +345,40 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
                 base.save('{0}/{1}_{2}_{3}.png'.format(setting, obj1.split('.')[0], obj2.split('.')[0], i), quality=100)
 
 
-def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling):
-    # Other parameters
-    im_size = 224  # Size of base image
+def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling,
+                        im_size=224):
 
     assert im_size % patch_size == 0
     
-    aug_str = ''
-    if rotation:
-        aug_str += 'R'
-    if scaling:
-        aug_str += 'S'
-    if len(aug_str) == 0:
-        aug_str = 'N'
-
-    # Make directories
-    try:
-        os.mkdir('stimuli')
-    except FileExistsError:
-        pass
-
-    if stim_dir == 'OBJECTSALL':
-        stim_subdir = ''
-    else:
-        stim_subdir = stim_dir + '/'
-
+    path_elements = stim_dir.split('/')
+    
+    stub = 'stimuli'
+    for p in path_elements[1:]:
         try:
-            os.mkdir('stimuli/{0}'.format(stim_dir))
+            os.mkdir('{0}/{1}'.format(stub, p))
         except FileExistsError:
             pass
-
-    if unaligned:
-        pos_dir = 'stimuli/{0}unaligned'.format(stim_subdir)
-    else:
-        pos_dir = 'stimuli/{0}aligned'.format(stim_subdir)
-
-    try:
-        os.mkdir(pos_dir)
-    except FileExistsError:
-        pass
-    
-    size_dir = '{0}/{1}'.format(pos_dir, f'trainsize_{n_train}')
-    
-    try:
-        os.mkdir(size_dir)
-    except FileExistsError:
-        pass
-
-    patch_dir = '{0}/{1}x{1}'.format(size_dir, patch_size * multiplier)
-
-    try:
-        os.mkdir(patch_dir)
-    except FileExistsError:
-        pass
-
-    try:
-        os.mkdir('{0}/{1}'.format(patch_dir, k))
-    except FileExistsError:
-        pass
-
-    patch_dir = patch_dir + '/' + str(k)
-    
-    try:
-        os.mkdir('{0}/{1}'.format(patch_dir, aug_str))
-    except FileExistsError:
-        pass
-    
-    patch_dir = patch_dir + '/' + aug_str
+        stub = '{0}/{1}'.format(stub, p)
 
     for condition in ['train', 'test', 'val']:
         try:
-            os.mkdir('{0}/{1}'.format(patch_dir, condition))
+            os.mkdir('{0}/{1}'.format(stim_dir, condition))
         except FileExistsError:
             pass
 
         try:
-            os.mkdir('{0}/{1}/same'.format(patch_dir, condition))
+            os.mkdir('{0}/{1}/same'.format(stim_dir, condition))
         except FileExistsError:
             pass
 
         try:
-            os.mkdir('{0}/{1}/different'.format(patch_dir, condition))
+            os.mkdir('{0}/{1}/different'.format(stim_dir, condition))
         except FileExistsError:
             pass
 
     # Collect object image paths
-    object_files = [f for f in os.listdir(f'stimuli/source/{stim_dir}') 
-                    if os.path.isfile(os.path.join(f'stimuli/source/{stim_dir}', f)) and f != '.DS_Store']
+    object_files = [f for f in os.listdir(f'stimuli/source/{path_elements[1]}') 
+                    if os.path.isfile(os.path.join(f'stimuli/source/{path_elements[1]}', f)) and f != '.DS_Store']
 
     # Compute number of unique objects that should be allocated to train/val/test sets
     percent_train = n_train / (n_train + n_val + n_test)
@@ -433,11 +409,11 @@ def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multip
            and set(object_files_test).isdisjoint(object_files_val)
 
     create_stimuli(k, n_train, object_files_train, unaligned, patch_size, multiplier,
-                   im_size, stim_dir, patch_dir, 'train', rotation=rotation, scaling=scaling)
+                   im_size, path_elements[1], stim_dir, 'train', rotation=rotation, scaling=scaling)
     create_stimuli(k, n_val, object_files_val, unaligned, patch_size, multiplier,
-                   im_size, stim_dir, patch_dir, 'val', rotation=rotation, scaling=scaling)
+                   im_size, path_elements[1], stim_dir, 'val', rotation=rotation, scaling=scaling)
     create_stimuli(k, n_test, object_files_test, unaligned, patch_size, multiplier,
-                   im_size, stim_dir, patch_dir, 'test', rotation=rotation, scaling=scaling)
+                   im_size, path_elements[1], stim_dir, 'test', rotation=rotation, scaling=scaling)
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ def train_model(model, device, model_type, data_loader, dataset_size, batch_size
                        'lr': optimizer.param_groups[0]['lr']}
 
         # Save the model
-        #torch.save(model.state_dict(), '{0}/model_{1}.pth'.format(log_dir, epoch))
+        torch.save(model.state_dict(), f'{log_dir}/model_{epoch}_{lr}_{wandb.run.id}.pth')
 
         # Perform evaluations
         model.eval()

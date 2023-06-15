@@ -179,8 +179,9 @@ parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
 
 # Training arguments
-parser.add_argument('--train_dataset', help='Name of the stimulus subdirectory to draw the training \
-                    set from.', required=False, default='OBJECTSALL')
+parser.add_argument('-td', '--train_datasets', nargs='+', required=False, 
+                    help='Names of all stimulus subdirectories to draw train stimuli from.', 
+                        default=['OBJECTSALL'])
 parser.add_argument('-vd','--val_datasets', nargs='+', required=False, 
                     default='all',
                     help='Names of all stimulus subdirectories to draw validation datasets from. \
@@ -205,8 +206,7 @@ parser.add_argument('--multiplier', type=int, default=2, help='Factor by which t
                     stimuli will be 64x64.')
 
 # Dataset size arguments
-parser.add_argument('--n_train', type=int, default=6400, help='Size of training dataset to use.' 
-                    'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
+parser.add_argument('--n_train', type=int, default=6400, help='Size of training dataset to use.')
 parser.add_argument('--n_val', type=int, default=-1,
                     help='Total # validation stimuli. Default: equal to n_train.')
 parser.add_argument('--n_test', type=int, default=-1,
@@ -237,7 +237,7 @@ cnn_size = args.cnn_size
 feature_extract = args.feature_extract
 pretrained = args.pretrained
 
-train_dataset_name = args.train_dataset
+train_dataset_names = args.train_datasets
 val_datasets_names = args.val_datasets
 optim = args.optim
 lr = args.lr
@@ -261,7 +261,9 @@ n_test_ood = args.n_test_ood
 # Default behavior for n_val, n_test
 if val_datasets_names == 'all':
     val_datasets_names = [name for name in os.listdir('stimuli/source') if os.path.isdir(f'stimuli/source/{name}')]
-    val_datasets_names.remove(train_dataset_name)
+    
+    for td in train_dataset_names:
+        val_datasets_names.remove(td)
     
 if n_val == -1:
     n_val = n_train
@@ -405,7 +407,21 @@ model_string += pretrained_string  # Indicate if model is pretrained
 model_string += fe_string  # Add 'fe' if applicable
 model_string += '_{0}'.format(optim)  # Optimizer string
 
-path_elements = [model_string, train_dataset_name, pos_string, aug_string, f'trainsize_{n_train}']
+if len(train_dataset_names) == 1:
+    train_dataset_string = train_dataset_names[0]
+else:
+    train_dataset_string = ''
+    
+    for td in train_dataset_names:
+        if 'GRAYSCALE' in td:
+            train_dataset_string += f'GRAY_{td.split("_")[1][:3]}-'
+        elif 'MASK' in td:
+            train_dataset_string += f'MASK_{td.split("_")[1][:3]}-'
+        else:
+            train_dataset_string += f'{td[:3]}-'
+    train_dataset_string = train_dataset_string[:-1]
+
+path_elements = [model_string, train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}']
 
 for root in ['logs']:
     stub = root
@@ -417,10 +433,10 @@ for root in ['logs']:
             pass
         stub = '{0}/{1}'.format(stub, p)
 
-log_dir = 'logs/{0}/{1}/{2}/{3}/{4}'.format(model_string, train_dataset_name, pos_string, aug_string, f'trainsize_{n_train}')
+log_dir = 'logs/{0}/{1}/{2}/{3}/{4}'.format(model_string, train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}')
 
 # Construct train set + DataLoader
-train_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(train_dataset_name, pos_string, aug_string, f'trainsize_{n_train}')
+train_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}')
 
 if not os.path.exists(train_dir):
     call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, 
@@ -435,7 +451,7 @@ val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 # Construct other validation sets
 val_datasets = [val_dataset]
 val_dataloaders = [val_dataloader]
-val_labels = [train_dataset_name]
+val_labels = [train_dataset_string]
 
 for v in range(len(val_datasets_names)):
     val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, f'trainsize_{n_train}')
@@ -472,7 +488,7 @@ exp_config = {
     'feature_extract': feature_extract,
     'pretrained': pretrained,
     'train_device': device,
-    'train_dataset': train_dataset_name,
+    'train_dataset': train_dataset_string,
     'pos_condition': pos_string,
     'aug': aug_string,
     'train_size': n_train,
@@ -490,7 +506,7 @@ exp_config = {
 wandb.init(project=wandb_proj, config=exp_config)
 
 run_id = wandb.run.id
-wandb.run.name = '{0}_{1}{2}_{3}_LR{4}_{5}'.format(model_string, train_dataset_name, n_train, aug_string, lr, run_id)
+wandb.run.name = '{0}_{1}{2}_{3}_LR{4}_{5}'.format(model_string, train_dataset_string, n_train, aug_string, lr, run_id)
 
 # Log model predictions
 pred_columns = ['Training Epoch', 'File Name', 'Image', 'Dataset', 'Prediction',

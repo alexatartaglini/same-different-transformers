@@ -10,6 +10,18 @@ import itertools
 from math import floor
 
 
+abbreviated_ds = {'OBJ': 'OBJECTSALL',
+                  'LET': 'LETTERS',
+                  'SQU': 'SQUIGGLES',
+                  'DEV': 'DEVELOPMENTAL',
+                  'OMN': 'OMNIGLOT',
+                  'GRAY_OBJ': 'GRAYSCALE_OBJECTSALL',
+                  'MASK_OBJ': 'MASK_OBJECTSALL',
+                  'GRAY_DEV': 'GRAYSCALE_DEVELOPMENTAL',
+                  'MASK_DEV': 'MASK_DEVELOPMENTAL'}
+obj_dict = {}
+
+
 def load_dataset(root_dir):
     int_to_label = {1: 'same', 0: 'different'}
     ims = {}
@@ -114,13 +126,14 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
         all_different_pairs = list(itertools.combinations(obj_sample, k))
         
         # Make sure different stimuli are different in shape AND texture
-        if stim_dir == 'DEVELOPMENTAL':
+        if stim_dir == 'DEVELOPMENTAL' or 'DEV' in stim_dir:
             for pair in all_different_pairs:
-                obj1 = pair[0].split('-')
-                obj2 = pair[1].split('-')
-                
-                if obj1[0] == obj2[0] or obj1[1] == obj2[1]:
-                    all_different_pairs.remove(pair)
+                if '-' in pair[0] and '-' in pair[1]:
+                    obj1 = pair[0].split('-')
+                    obj2 = pair[1].split('-')
+                    
+                    if obj1[0] == obj2[0] or obj1[1] == obj2[1]:
+                        all_different_pairs.remove(pair)
         
         different_sample = random.sample(all_different_pairs, k=n_per_class)
             
@@ -161,13 +174,14 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
         all_different_pairs = list(itertools.combinations(objects, k))
         
         # Make sure different stimuli are different in shape AND texture
-        if stim_dir == 'DEVELOPMENTAL':
+        if stim_dir == 'DEVELOPMENTAL' or 'DEV' in stim_dir:
             for pair in all_different_pairs:
-                obj1 = pair[0].split('-')
-                obj2 = pair[1].split('-')
-                
-                if obj1[0] == obj2[0] or obj1[1] == obj2[1]:
-                    all_different_pairs.remove(pair)
+                if '-' in pair[0] and '-' in pair[1]:
+                    obj1 = pair[0].split('-')
+                    obj2 = pair[1].split('-')
+                    
+                    if obj1[0] == obj2[0] or obj1[1] == obj2[1]:
+                        all_different_pairs.remove(pair)
         
         different_sample = random.sample(all_different_pairs, k=len(objects))
 
@@ -279,7 +293,10 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
     object_ims_all = {}
 
     for o in objects:
-        im = Image.open('stimuli/source/{0}/{1}'.format(stim_dir, o)).convert('RGB')
+        if '-' in stim_dir:
+            im = Image.open('stimuli/source/{0}/{1}'.format(obj_dict[o], o)).convert('RGB')
+        else:
+            im = Image.open('stimuli/source/{0}/{1}'.format(stim_dir, o)).convert('RGB')
         im = im.resize((obj_size, obj_size))
         object_ims_all[o] = im
 
@@ -377,8 +394,22 @@ def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multip
             pass
 
     # Collect object image paths
-    object_files = [f for f in os.listdir(f'stimuli/source/{path_elements[1]}') 
-                    if os.path.isfile(os.path.join(f'stimuli/source/{path_elements[1]}', f)) and f != '.DS_Store']
+    if '-' in path_elements[1]:  # Compound dataset
+        train_datasets = path_elements[1].split('-')
+        object_files = []
+        
+        for td in train_datasets:
+            object_files_td = [f for f in os.listdir(f'stimuli/source/{abbreviated_ds[td]}') 
+                            if os.path.isfile(os.path.join(f'stimuli/source/{abbreviated_ds[td]}', f)) 
+                            and f != '.DS_Store']
+            for f in object_files_td:
+                obj_dict[f] = abbreviated_ds[td]
+                
+            object_files += random.sample(object_files_td, k=min(600, len(object_files_td)))
+    else:
+        object_files = [f for f in os.listdir(f'stimuli/source/{path_elements[1]}') 
+                        if os.path.isfile(os.path.join(f'stimuli/source/{path_elements[1]}', f)) 
+                        and f != '.DS_Store']
 
     # Compute number of unique objects that should be allocated to train/val/test sets
     percent_train = n_train / (n_train + n_val + n_test)

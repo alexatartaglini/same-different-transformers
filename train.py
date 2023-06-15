@@ -15,7 +15,7 @@ import sys
 
 
 def train_model(args, model, device, data_loader, dataset_size, optimizer,
-                scheduler, log_dir, val_datasets, val_dataloaders, test_data_at, 
+                scheduler, log_dir, val_datasets, val_dataloaders, 
                 test_table, val_labels=None):
     
     if not val_labels:
@@ -140,8 +140,11 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 metric_dict['val_loss_{0}'.format(val_label)] = epoch_loss_val
                 metric_dict['val_acc_{0}'.format(val_label)] = epoch_acc_val
            
-        test_data_at.add(test_table, 'predictions')
-        wandb.run.log_artifact(test_data_at).wait() 
+        if epoch in log_preds_epochs:
+            test_data_at = wandb.Artifact(f'test_errors_{run_id}_{epoch}', type='predictions')
+            test_data_at.add(test_table, 'predictions')
+            wandb.run.log_artifact(test_data_at).wait() 
+            
         scheduler.step(metric_dict[f'val_acc_{val_labels[0]}'])  # Reduce LR based on validation accuracy
 
         # Log metrics
@@ -490,7 +493,6 @@ run_id = wandb.run.id
 wandb.run.name = '{0}_{1}{2}_{3}_LR{4}_{5}'.format(model_string, train_dataset_name, n_train, aug_string, lr, run_id)
 
 # Log model predictions
-test_data_at = wandb.Artifact(f'test_errors_{run_id}', type='predictions')
 pred_columns = ['Training Epoch', 'File Name', 'Image', 'Dataset', 'Prediction',
                 'Truth', 'Same Score', 'Different Score', 'Same Accuracy', 
                 'Different Accuracy']
@@ -499,4 +501,4 @@ test_table = wandb.Table(columns=pred_columns)
 # Run training loop + evaluations
 model = train_model(args, model, device, train_dataloader, len(train_dataset), 
                     optimizer, scheduler, log_dir, val_datasets, val_dataloaders,
-                    test_data_at, test_table, val_labels)
+                    test_table, val_labels)

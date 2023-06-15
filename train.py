@@ -1,5 +1,7 @@
 from torchvision import models, transforms
-from transformers import ViTImageProcessor, ViTForImageClassification, ViTConfig, CLIPProcessor, CLIPModel
+from transformers import ViTImageProcessor, ViTForImageClassification, ViTConfig
+#CLIPProcessor, CLIPModel, CLIPConfig
+import clip
 from torch.utils.data import DataLoader
 from data import SameDifferentDataset, call_create_stimuli
 import torch.nn as nn
@@ -9,6 +11,7 @@ import os
 from sklearn.metrics import accuracy_score
 import wandb
 import numpy as np
+import sys
 
 
 def train_model(args, model, device, data_loader, dataset_size, optimizer,
@@ -53,6 +56,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
 
             with torch.set_grad_enabled(True):
                 outputs = model(inputs)
+
                 if model_type == 'vit':
                     outputs = outputs.logits
 
@@ -161,7 +165,7 @@ parser.add_argument('--wandb_proj', type=str, default='same-different-transforme
                     help='Name of WandB project to store the run in.')
 
 # Model/architecture arguments
-parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip-rn, clip-vit.',
+parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip_rn, clip_vit.',
                     type=str, required=True)
 parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
 parser.add_argument('--cnn_size', type=int, default=50,
@@ -170,7 +174,6 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers.')
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
-parser.add_argument('--clip', action='store_true', default=False, help='Use CLIP model.')
 
 # Training arguments
 parser.add_argument('--train_dataset', help='Name of the stimulus subdirectory to draw the training \
@@ -230,7 +233,6 @@ patch_size = args.patch_size
 cnn_size = args.cnn_size
 feature_extract = args.feature_extract
 pretrained = args.pretrained
-clip = args.clip
 
 train_dataset_name = args.train_dataset
 val_datasets_names = args.val_datasets
@@ -281,12 +283,14 @@ int_to_label = {0: 'different', 1: 'same'}
 label_to_int = {'different': 0, 'same': 1}
 
 # Check arguments
+assert not (model_type == 'clip_rn' and cnn_size != 50)  # Only CLIP ResNet-50 is defined
 assert len(n_train_ood) == len(val_datasets_names)
 assert len(n_test_ood) == len(val_datasets_names)
 assert len(n_val_ood) == len(val_datasets_names)
 assert im_size % patch_size == 0
 assert k == 2 or k == 4 or k == 8
-assert model_type == 'resnet' or model_type == 'vit'
+assert model_type == 'resnet' or model_type == 'vit' or model_type == 'clip_rn' \
+    or model_type == 'clip_vit'
 
 # Create necessary directories 
 try:
@@ -321,7 +325,7 @@ if len(aug_string) == 0:
 # Load models
 if model_type == 'resnet':
     model_string = 'resnet_{0}'.format(cnn_size)
-
+    
     if cnn_size == 18:
         model = models.resnet18(pretrained=pretrained)
     elif cnn_size == 50:
@@ -342,34 +346,54 @@ if model_type == 'resnet':
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
+    
 elif model_type == 'vit':
     model_string = 'vit_b{0}'.format(patch_size)
     
-    if clip:
-        model_path = 'openai/clip-vit-base-patch{patch_size}'
-        
-        if pretrained:
-            model = CLIPModel.from_pretrained(model_path)
+    model_path = f'google/vit-base-patch{patch_size}-{im_size}-in21k'
+
+    if pretrained:
+        model = ViTForImageClassification.from_pretrained(
+            model_path,
+            num_labels=2,
+            id2label=int_to_label,
+            label2id=label_to_int
+        )
     else:
-        model_path = f'google/vit-base-patch{patch_size}-{im_size}-in21k'
-    
-        if pretrained:
-            model = ViTForImageClassification.from_pretrained(
-                model_path,
-                num_labels=2,
-                id2label=int_to_label,
-                label2id=label_to_int
-            )
-        else:
-            configuration = ViTConfig(patch_size=patch_size, image_size=im_size)
-            model = ViTForImageClassification(configuration)
-            
-        transform = ViTImageProcessor(do_resize=False)
+        configuration = ViTConfig(patch_size=patch_size, image_size=im_size)
+        model = ViTForImageClassification(configuration)
+        
+    transform = ViTImageProcessor(do_resize=False).from_pretrained(model_path)
 
     if feature_extract:
         for name, param in model.named_parameters():
             if 'classifier' not in name:
                 param.requires_grad = False
+            
+elif 'clip' in model_type:                
+    if 'vit' in model_type:
+        model_string = model_string = 'clip_vit_b{0}'.format(patch_size)
+        
+        if pretrained:
+            model, transform = clip.load(f'ViT-B/{patch_size}', device=device)
+        else:
+            sys.exit(1)
+    else:
+        model_string = 'clip_resnet50'
+        
+        if pretrained:
+            model, transform = clip.load('RN50', device=device)
+        else:
+            sys.exit(1)
+    
+    if feature_extract:
+        for name, param in model.visual.named_parameters():
+            param.requires_grad = False
+    
+    # Add classification head to vision encoder
+    in_features = model.visual.proj.shape[1]
+    fc = nn.Linear(in_features, 2).to(device)
+    model = nn.Sequential(model.visual, fc).float()
 
 model = model.to(device)  # Move model to GPU if possible
 

@@ -275,7 +275,7 @@ if len(n_test_ood) == 0:
     n_test_ood = n_train_ood
 
 # Ensure that stimuli are 64x64
-if model_type == 'vit':
+if model_type == 'vit' or model_type == 'clip_vit':
     if patch_size == 16:
         multiplier = multiplier*2
 

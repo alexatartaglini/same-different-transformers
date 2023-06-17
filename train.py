@@ -168,7 +168,7 @@ parser.add_argument('--wandb_proj', type=str, default='same-different-transforme
                     help='Name of WandB project to store the run in.')
 
 # Model/architecture arguments
-parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip_rn, clip_vit.',
+parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip_rn, clip_vit, small_cnn.',
                     type=str, required=True)
 parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
 parser.add_argument('--cnn_size', type=int, default=50,
@@ -295,7 +295,7 @@ assert len(n_val_ood) == len(val_datasets_names)
 assert im_size % patch_size == 0
 assert k == 2 or k == 4 or k == 8
 assert model_type == 'resnet' or model_type == 'vit' or model_type == 'clip_rn' \
-    or model_type == 'clip_vit'
+    or model_type == 'clip_vit' or model_type == 'small_cnn'
 
 # Create necessary directories 
 try:
@@ -399,6 +399,35 @@ elif 'clip' in model_type:
     in_features = model.visual.proj.shape[1]
     fc = nn.Linear(in_features, 2).to(device)
     model = nn.Sequential(model.visual, fc).float()
+
+elif model_type == 'small_cnn':
+    def stripalpha(x):
+        return x[:3, :, :]
+    transform = transforms.Compose(
+                [
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.Resize(64), 
+                    transforms.ToTensor(),
+                    stripalpha
+                ]
+            )
+    model = nn.Sequential(
+        nn.Conv2d(3, 64, kernel_size=3, stride=2, bias=False),
+        nn.ReLU(),
+        nn.BatchNorm2d(64),
+        nn.Conv2d(64, 64, kernel_size=3, stride=2, bias=False),
+        nn.ReLU(),
+        nn.BatchNorm2d(64),
+        nn.Conv2d(64, 64, kernel_size=3, stride=2, bias=False),
+        nn.ReLU(),
+        nn.BatchNorm2d(64),
+        nn.Conv2d(64, 64, kernel_size=3, stride=2, bias=False),
+        nn.ReLU(),
+        nn.BatchNorm2d(64),
+        nn.Flatten(),
+        nn.Linear(576, 2) # leave as logits
+    ).float()
 
 model = model.to(device)  # Move model to GPU if possible
 

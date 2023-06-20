@@ -164,7 +164,7 @@ except AttributeError:  # if MPS is not available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--wandb_proj', type=str, default='same-different-transformers',
+parser.add_argument('--wandb_proj', type=str, default='samediff', #same-different-transformers
                     help='Name of WandB project to store the run in.')
 
 # Model/architecture arguments
@@ -401,6 +401,7 @@ elif 'clip' in model_type:
     model = nn.Sequential(model.visual, fc).float()
 
 elif model_type == 'small_cnn':
+    model_string = 'small_cnn'
     def stripalpha(x):
         return x[:3, :, :]
     transform = transforms.Compose(

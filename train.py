@@ -533,7 +533,7 @@ exp_config = {
 }
 
 # Initialize Weights & Biases project & table
-wandb.init(project=wandb_proj, config=exp_config)
+wandb.init(entity='samediff', project=wandb_proj, config=exp_config)
 
 run_id = wandb.run.id
 wandb.run.name = '{0}_{1}{2}_{3}_LR{4}_{5}'.format(model_string, train_dataset_string, n_train, aug_string, lr, run_id)

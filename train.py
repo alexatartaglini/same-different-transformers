@@ -145,7 +145,8 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
             test_data_at.add(test_table, 'predictions')
             wandb.run.log_artifact(test_data_at).wait() 
             
-        scheduler.step(metric_dict[f'val_acc_{val_labels[0]}'])  # Reduce LR based on validation accuracy
+        if scheduler:
+            scheduler.step(metric_dict[f'val_acc_{val_labels[0]}'])  # Reduce LR based on validation accuracy
 
         # Log metrics
         wandb.log(metric_dict)
@@ -509,6 +510,8 @@ if lr_scheduler == 'reduce_on_plateau':
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=num_epochs//5)
 elif lr_scheduler == 'exponential':
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
+elif lr_scheduler.lower() == 'none':
+    scheduler = None
 
 # Information to store
 exp_config = {

@@ -12,6 +12,7 @@ from sklearn.metrics import accuracy_score
 import wandb
 import numpy as np
 import sys
+from math import floor
 
 
 def train_model(args, model, device, data_loader, dataset_size, optimizer,
@@ -165,11 +166,12 @@ except AttributeError:  # if MPS is not available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--wandb_proj', type=str, default='samediff', #same-different-transformers
+parser.add_argument('--wandb_proj', type=str, default='same-different-transformers',
                     help='Name of WandB project to store the run in.')
+parser.add_argument('--wandb_entity', type=str, default=None, help='Team to send run to.')
 
 # Model/architecture arguments
-parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip_rn, clip_vit, small_cnn.',
+parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip_rn, clip_vit.',
                     type=str, required=True)
 parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
 parser.add_argument('--cnn_size', type=int, default=50,
@@ -208,9 +210,11 @@ parser.add_argument('--multiplier', type=int, default=2, help='Factor by which t
 
 # Dataset size arguments
 parser.add_argument('--n_train', type=int, default=6400, help='Size of training dataset to use.')
-parser.add_argument('--n_val', type=int, default=-1,
+parser.add_argument('--n_train_tokens', type=int, default=-1, help='Number of unique tokens to use \
+                    in the training dataset. If -1, then the maximum number of tokens is used.')
+parser.add_argument('--n_val', type=float, default=-1,
                     help='Total # validation stimuli. Default: equal to n_train.')
-parser.add_argument('--n_test', type=int, default=-1,
+parser.add_argument('--n_test', type=float, default=-1,
                     help='Total # test stimuli. Default: equal to n_train.')
 parser.add_argument('--n_train_ood', nargs='+', required=False, default=[],
                     help='Size of OOD training sets.')
@@ -231,6 +235,7 @@ args = parser.parse_args()
 
 # Parse command line arguments
 wandb_proj = args.wandb_proj
+wandb_entity = args.wandb_entity
 
 model_type = args.model_type
 patch_size = args.patch_size
@@ -253,6 +258,7 @@ unaligned = args.unaligned
 multiplier = args.multiplier
 
 n_train = args.n_train
+n_train_tokens = args.n_train_tokens
 n_val = args.n_val
 n_test = args.n_test
 n_train_ood = args.n_train_ood
@@ -266,6 +272,8 @@ if val_datasets_names == 'all':
     for td in train_dataset_names:
         val_datasets_names.remove(td)
     
+#if isinstance(n_val, float) and isinstance(n_test, float):
+
 if n_val == -1:
     n_val = n_train
 if n_test == -1:
@@ -296,7 +304,7 @@ assert len(n_val_ood) == len(val_datasets_names)
 assert im_size % patch_size == 0
 assert k == 2 or k == 4 or k == 8
 assert model_type == 'resnet' or model_type == 'vit' or model_type == 'clip_rn' \
-    or model_type == 'clip_vit' or model_type == 'small_cnn'
+    or model_type == 'clip_vit'
 
 # Create necessary directories 
 try:
@@ -401,36 +409,6 @@ elif 'clip' in model_type:
     fc = nn.Linear(in_features, 2).to(device)
     model = nn.Sequential(model.visual, fc).float()
 
-elif model_type == 'small_cnn':
-    model_string = 'small_cnn'
-    def stripalpha(x):
-        return x[:3, :, :]
-    transform = transforms.Compose(
-                [
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.Resize(64), 
-                    transforms.ToTensor(),
-                    stripalpha
-                ]
-            )
-    model = nn.Sequential(
-        nn.Conv2d(3, 64, kernel_size=3, stride=2, bias=False),
-        nn.ReLU(),
-        nn.BatchNorm2d(64),
-        nn.Conv2d(64, 64, kernel_size=3, stride=2, bias=False),
-        nn.ReLU(),
-        nn.BatchNorm2d(64),
-        nn.Conv2d(64, 64, kernel_size=3, stride=2, bias=False),
-        nn.ReLU(),
-        nn.BatchNorm2d(64),
-        nn.Conv2d(64, 64, kernel_size=3, stride=2, bias=False),
-        nn.ReLU(),
-        nn.BatchNorm2d(64),
-        nn.Flatten(),
-        nn.Linear(576, 2) # leave as logits
-    ).float()
-
 model = model.to(device)  # Move model to GPU if possible
 
 # Create paths
@@ -452,7 +430,18 @@ else:
             train_dataset_string += f'{td[:3]}-'
     train_dataset_string = train_dataset_string[:-1]
 
-path_elements = [model_string, train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}']
+# Compute number of unique train tokens
+n_unique = len([f for f in os.listdir(f'stimuli/source/{train_dataset_string}') 
+                if os.path.isfile(os.path.join(f'stimuli/source/{train_dataset_string}', f)) 
+                and f != '.DS_Store'])
+if n_train_tokens == -1:
+    percent_train = n_train / (n_train + n_val + n_test)
+    n_unique_train = floor(n_unique * percent_train)
+else:
+    assert n_train_tokens <= n_unique - 2
+    n_unique_train = n_train_tokens
+
+path_elements = [model_string, train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}_{n_unique_train}']
 
 for root in ['logs']:
     stub = root
@@ -464,14 +453,16 @@ for root in ['logs']:
             pass
         stub = '{0}/{1}'.format(stub, p)
 
-log_dir = 'logs/{0}/{1}/{2}/{3}/{4}'.format(model_string, train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}')
+log_dir = 'logs/{0}/{1}/{2}/{3}/{4}'.format(model_string, train_dataset_string, pos_string, aug_string, 
+                                            f'trainsize_{n_train}_{n_unique_train}')
 
 # Construct train set + DataLoader
-train_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}')
+train_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(train_dataset_string, pos_string, aug_string, 
+                                             f'trainsize_{n_train}_{n_unique_train}')
 
 if not os.path.exists(train_dir):
     call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, 
-                        train_dir, rotation, scaling)
+                        train_dir, rotation, scaling, n_train_tokens=n_train_tokens)
     
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -485,11 +476,18 @@ val_dataloaders = [val_dataloader]
 val_labels = [train_dataset_string]
 
 for v in range(len(val_datasets_names)):
-    val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, f'trainsize_{n_train}')
+    n_unique = len([f for f in os.listdir(f'stimuli/source/{val_datasets_names[v]}') 
+                    if os.path.isfile(os.path.join(f'stimuli/source/{val_datasets_names[v]}', f)) 
+                    and f != '.DS_Store'])
+    percent_train = n_train_ood[v] / (n_train_ood[v] + n_val_ood[v] + n_test_ood[v])
+    n_unique_val = floor(n_unique * percent_train)
+    
+    val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, 
+                                               f'trainsize_{n_train_ood[v]}_{n_unique_val}')
     
     if not os.path.exists(val_dir):
         call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
-                            val_dir, rotation, scaling)
+                            val_dir, rotation, scaling, n_train_tokens=n_unique_val)
     
     val_dataset = SameDifferentDataset(val_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
@@ -525,6 +523,7 @@ exp_config = {
     'pos_condition': pos_string,
     'aug': aug_string,
     'train_size': n_train,
+    'n_train_tokens': n_unique_train,
     'learning_rate': lr,
     'scheduler': lr_scheduler,
     'decay_rate': decay_rate,
@@ -536,10 +535,13 @@ exp_config = {
 }
 
 # Initialize Weights & Biases project & table
-wandb.init(entity='samediff', project=wandb_proj, config=exp_config)
+if wandb_entity:
+    wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity)
+else:
+    wandb.init(project=wandb_proj, config=exp_config)
 
 run_id = wandb.run.id
-wandb.run.name = '{0}_{1}{2}_{3}_LR{4}_{5}'.format(model_string, train_dataset_string, n_train, aug_string, lr, run_id)
+wandb.run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}_{aug_string}_LR{lr}_{run_id}'
 
 # Log model predictions
 pred_columns = ['Training Epoch', 'File Name', 'Image', 'Dataset', 'Prediction',

@@ -363,7 +363,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
 
 
 def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling,
-                        im_size=224):
+                        im_size=224, n_train_tokens=-1):
 
     assert im_size % patch_size == 0
     
@@ -411,16 +411,25 @@ def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multip
                         if os.path.isfile(os.path.join(f'stimuli/source/{path_elements[1]}', f)) 
                         and f != '.DS_Store']
 
+    
     # Compute number of unique objects that should be allocated to train/val/test sets
-    percent_train = n_train / (n_train + n_val + n_test)
-    percent_val = n_val / (n_train + n_val + n_test)
-    percent_test = n_test / (n_train + n_val + n_test)
-
     n_unique = len(object_files)
-    n_unique_train = floor(n_unique * percent_train)
-    n_unique_val = floor(n_unique * percent_val)
-    n_unique_test = floor(n_unique * percent_test)
-
+    
+    if n_train_tokens == -1:  # Default behavior: match the train/val/test split
+        percent_train = n_train / (n_train + n_val + n_test)
+        percent_val = n_val / (n_train + n_val + n_test)
+        percent_test = n_test / (n_train + n_val + n_test)
+    
+        n_unique_train = floor(n_unique * percent_train)
+        n_unique_val = floor(n_unique * percent_val)
+        n_unique_test = floor(n_unique * percent_test)
+    else: 
+        n_unique_train = n_train_tokens
+        remainder = n_unique - n_train_tokens
+        
+        n_unique_val = remainder // 2
+        n_unique_test = remainder // 2
+        
     # Allocate unique objects
     ofs = object_files  # Copy of object_files to sample from
 

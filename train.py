@@ -188,7 +188,7 @@ parser.add_argument('-vd','--val_datasets', nargs='+', required=False,
                         Input "all" in order to test on all existing sets.')
 parser.add_argument('--optim', type=str, default='adamw',
                     help='Training optimizer, eg. adam, adamw, sgd.')
-parser.add_argument('--lr', default=2e-6, help='Learning rate.')
+parser.add_argument('--lr', default=2e-6, type=float, help='Learning rate.')
 parser.add_argument('--lr_scheduler', default='reduce_on_plateau', help='LR scheduler.')
 parser.add_argument('--num_epochs', type=int, default=30, help='Number of training epochs.')
 parser.add_argument('--batch_size', type=int, default=64, help='Train/validation batch size.')
@@ -473,10 +473,10 @@ if not os.path.exists(train_dir):
                         train_dir, rotation, scaling)
     
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
 
 val_dataset = SameDifferentDataset(train_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
     
 # Construct other validation sets
 val_datasets = [val_dataset]

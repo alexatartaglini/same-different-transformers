@@ -11,10 +11,9 @@ from math import floor
 
 
 abbreviated_ds = {'OBJ': 'OBJECTSALL',
-                  'LET': 'LETTERS',
                   'SQU': 'SQUIGGLES',
                   'DEV': 'DEVELOPMENTAL',
-                  'OMN': 'OMNIGLOT',
+                  'ALP': 'ALPHANUMERIC',
                   'GRAY_OBJ': 'GRAYSCALE_OBJECTSALL',
                   'MASK_OBJ': 'MASK_OBJECTSALL',
                   'GRAY_DEV': 'GRAYSCALE_DEVELOPMENTAL',
@@ -461,8 +460,7 @@ if __name__ == "__main__":
     parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
     parser.add_argument('--n_train', type=int, default=6400,
                         help='Total # of training stimuli. eg. if n_train=6400, a dataset'
-                             'will be generated with 3200 same and 3200 different stimuli.'
-                             'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
+                             'will be generated with 3200 same and 3200 different stimuli.')
     parser.add_argument('--n_val', type=int, default=-1,
                         help='Total # validation stimuli. Default: equal to n_train.')
     parser.add_argument('--n_test', type=int, default=-1,

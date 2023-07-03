@@ -86,7 +86,7 @@ if args.slurm:  # Parallelize across multiple GPUs
     for i in range(4):
         sp.append(subprocess.Popen(['srun',
                     'agents.sh',
-                    i,
+                    str(i),
                     f'{args.wandb_entity}/{args.wandb_proj}/{sweep_id}']))
     exit_codes = [p.wait() for p in sp]
 else:

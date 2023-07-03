@@ -29,11 +29,10 @@ model_names = {
 sweep_name = model_names[args.model_type]
 
 # Define command structure + specify sweep name
-commands = ['${env}', '${interpreter}', '${program}', '--unaligned', '--rotation', '--scaling',
-            f'--wandb_proj {args.wandb_proj}', f'--wandb_entity {args.wandb_entity}']
+commands = ['${env}', '${interpreter}', '${program}', '--unaligned', '--rotation', '--scaling']
 
 if args.pretrained:
-    commands += '--pretrained'
+    commands += ['--pretrained']
     if 'clip' in args.model_type:
         sweep_name = f'CLIP {sweep_name}'
     else:
@@ -45,7 +44,7 @@ if args.feature_extract:
     commands += '--feature_extract'
     sweep_name += ' Feature Extract'
     
-commands += '${args}'
+commands += ['${args}']
 
 sweep_configuration = {
     'method': 'grid',
@@ -61,15 +60,16 @@ sweep_configuration = {
                                       'MASK_DEVELOPMENTAL',
                                       'ALPHANUMERIC',
                                       'SQUIGGLES']},
-        'lr_scheduler': {'values': 'reduce_on_plateau'},
-        'optim': {'values': 'adamw'},
-        'lr': {'values': [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8]},
-        'n_train': {'values': [6400]},
+        'lr': {'values': [1e-4, 1e-5, 1e-6, 1e-7, 1e-8]},
+        'lr_scheduler': {'values': ['reduce_on_plateau', 'exponential']},
         'n_train_tokens': {'values': [1200]},
         'n_val_tokens': {'values': [300]},
         'n_test_tokens': {'values': [100]},
         'patch_size': {'values': [args.patch_size]},
-        'num_epochs': {'values': [70, 60, 50, 40, 30]}
+        'num_epochs': {'values': [70]},
+        'wandb_proj': {'values': [args.wandb_proj]},
+        'wandb_entity': {'values': [args.wandb_entity]},
+        'model_type': {'values': [args.model_type]}
         }
     }
 

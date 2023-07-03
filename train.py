@@ -15,6 +15,8 @@ import sys
 from math import floor
 
 
+os.chdir(sys.path[0])
+
 def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 scheduler, log_dir, val_datasets, val_dataloaders, 
                 test_table, val_labels=None):
@@ -191,7 +193,7 @@ parser.add_argument('-vd','--val_datasets', nargs='+', required=False,
                         Input "all" in order to test on all existing sets.')
 parser.add_argument('--optim', type=str, default='adamw',
                     help='Training optimizer, eg. adam, adamw, sgd.')
-parser.add_argument('--lr', default=2e-6, help='Learning rate.')
+parser.add_argument('--lr', type=float, default=2e-6, help='Learning rate.')
 parser.add_argument('--lr_scheduler', default='reduce_on_plateau', help='LR scheduler.')
 parser.add_argument('--num_epochs', type=int, default=30, help='Number of training epochs.')
 parser.add_argument('--batch_size', type=int, default=64, help='Train/validation batch size.')
@@ -572,12 +574,12 @@ exp_config = {
 
 # Initialize Weights & Biases project & table
 if wandb_entity:
-    wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity)
+    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity, dir="/scratch/art481/same-different-transformers/wandb")
 else:
-    wandb.init(project=wandb_proj, config=exp_config)
+    run = wandb.init(project=wandb_proj, config=exp_config, dir="/scratch/art481/same-different-transformers/wandb")
 
 run_id = wandb.run.id
-wandb.run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}_{aug_string}_LR{lr}_{run_id}'
+run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}_{aug_string}_LR{lr}_{run_id}'
 
 # Log model predictions
 pred_columns = ['Training Epoch', 'File Name', 'Image', 'Dataset', 'Prediction',
@@ -589,3 +591,4 @@ test_table = wandb.Table(columns=pred_columns)
 model = train_model(args, model, device, train_dataloader, len(train_dataset), 
                     optimizer, scheduler, log_dir, val_datasets, val_dataloaders,
                     test_table, val_labels)
+

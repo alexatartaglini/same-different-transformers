@@ -18,6 +18,7 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
 parser.add_argument('--slurm', action='store_true', default=False)
+parser.add_argument('--n_gpus', type=int, default=4, required=False)
 
 args = parser.parse_args()
 
@@ -83,7 +84,7 @@ sweep_id = wandb.sweep(sweep=sweep_configuration, project=args.wandb_proj, entit
 
 if args.slurm:  # Parallelize across multiple GPUs
     sp = []
-    for i in range(4):
+    for i in range(args.n_gpus):
         sp.append(subprocess.Popen(['srun',
                     'agents.sh',
                     str(i),

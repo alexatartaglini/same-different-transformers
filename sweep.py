@@ -17,7 +17,7 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers.')
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
-parser.add_argumet('--slurm', action='store_true', default=False)
+parser.add_argument('--slurm', action='store_true', default=False)
 
 args = parser.parse_args()
 

@@ -60,21 +60,13 @@ sweep_configuration = {
                                       'MASK_DEVELOPMENTAL',
                                       'ALPHANUMERIC',
                                       'SQUIGGLES']},
-<<<<<<< HEAD
-        'lr': {'values': [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8]},
-=======
         'lr': {'values': [1e-4, 1e-5, 1e-6, 1e-7, 1e-8]},
->>>>>>> 8232aabb93ea1c199234adbd6b7b438ffbafe067
         'lr_scheduler': {'values': ['reduce_on_plateau', 'exponential']},
         'n_train_tokens': {'values': [1200]},
         'n_val_tokens': {'values': [300]},
         'n_test_tokens': {'values': [100]},
         'patch_size': {'values': [args.patch_size]},
-<<<<<<< HEAD
-        'num_epochs': {'values': [70, 60, 50, 40, 30]},
-=======
         'num_epochs': {'values': [70]},
->>>>>>> 8232aabb93ea1c199234adbd6b7b438ffbafe067
         'wandb_proj': {'values': [args.wandb_proj]},
         'wandb_entity': {'values': [args.wandb_entity]},
         'model_type': {'values': [args.model_type]}

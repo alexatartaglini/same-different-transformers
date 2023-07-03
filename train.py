@@ -15,6 +15,8 @@ import sys
 from math import floor
 
 
+os.chdir(sys.path[0])
+
 def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 scheduler, log_dir, val_datasets, val_dataloaders, 
                 test_table, val_labels=None):
@@ -191,7 +193,7 @@ parser.add_argument('-vd','--val_datasets', nargs='+', required=False,
                         Input "all" in order to test on all existing sets.')
 parser.add_argument('--optim', type=str, default='adamw',
                     help='Training optimizer, eg. adam, adamw, sgd.')
-parser.add_argument('--lr', default=2e-6, type=float, help='Learning rate.')
+parser.add_argument('--lr', type=float, default=2e-6, help='Learning rate.')
 parser.add_argument('--lr_scheduler', default='reduce_on_plateau', help='LR scheduler.')
 parser.add_argument('--num_epochs', type=int, default=30, help='Number of training epochs.')
 parser.add_argument('--batch_size', type=int, default=64, help='Train/validation batch size.')
@@ -212,6 +214,10 @@ parser.add_argument('--multiplier', type=int, default=2, help='Factor by which t
 parser.add_argument('--n_train', type=int, default=6400, help='Size of training dataset to use.')
 parser.add_argument('--n_train_tokens', type=int, default=-1, help='Number of unique tokens to use \
                     in the training dataset. If -1, then the maximum number of tokens is used.')
+parser.add_argument('--n_val_tokens', type=int, default=-1, help='Number of unique tokens to use \
+                    in the validation dataset. If -1, then number tokens = (total - n_train_tokens) // 2.')
+parser.add_argument('--n_test_tokens', type=int, default=-1, help='Number of unique tokens to use \
+                    in the test dataset. If -1, then number tokens = (total - n_train_tokens) // 2.')
 parser.add_argument('--n_val', type=float, default=-1,
                     help='Total # validation stimuli. Default: equal to n_train.')
 parser.add_argument('--n_test', type=float, default=-1,
@@ -259,6 +265,8 @@ multiplier = args.multiplier
 
 n_train = args.n_train
 n_train_tokens = args.n_train_tokens
+n_val_tokens = args.n_val_tokens
+n_test_tokens = args.n_test_tokens
 n_val = args.n_val
 n_test = args.n_test
 n_train_ood = args.n_train_ood
@@ -436,10 +444,34 @@ n_unique = len([f for f in os.listdir(f'stimuli/source/{train_dataset_string}')
                 and f != '.DS_Store'])
 if n_train_tokens == -1:
     percent_train = n_train / (n_train + n_val + n_test)
+    percent_val = n_val / (n_train + n_val + n_test)
+    percent_test = n_test / (n_train + n_val + n_test)
+    
     n_unique_train = floor(n_unique * percent_train)
+    n_unique_val = floor(n_unique * percent_val)
+    n_unique_test = floor(n_unique * percent_test)
 else:
     assert n_train_tokens <= n_unique - 2
     n_unique_train = n_train_tokens
+    
+    remainder = n_unique - n_train_tokens
+    if n_val_tokens == -1:
+        if n_test_tokens == -1:
+            n_unique_val = remainder // 2
+            n_unique_test = remainder // 2
+        else:
+            assert n_test_tokens < remainder
+            n_unique_val = remainder - n_test_tokens
+            n_unique_test = n_test_tokens
+    else:
+        if n_test_tokens == -1:
+            assert n_val_tokens < remainder
+            n_unique_val = n_val_tokens
+            n_unique_test = remainder - n_val_tokens
+        else:
+            assert n_val_tokens + n_test_tokens <= remainder
+            n_unique_val = n_val_tokens
+            n_unique_test = n_test_tokens
 
 path_elements = [model_string, train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}_{n_unique_train}']
 
@@ -462,7 +494,8 @@ train_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(train_dataset_string, pos_string, a
 
 if not os.path.exists(train_dir):
     call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, 
-                        train_dir, rotation, scaling, n_train_tokens=n_train_tokens)
+                        train_dir, rotation, scaling, n_train_tokens=n_train_tokens, 
+                        n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)
     
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
@@ -476,18 +509,21 @@ val_dataloaders = [val_dataloader]
 val_labels = [train_dataset_string]
 
 for v in range(len(val_datasets_names)):
+    '''
     n_unique = len([f for f in os.listdir(f'stimuli/source/{val_datasets_names[v]}') 
                     if os.path.isfile(os.path.join(f'stimuli/source/{val_datasets_names[v]}', f)) 
                     and f != '.DS_Store'])
     percent_train = n_train_ood[v] / (n_train_ood[v] + n_val_ood[v] + n_test_ood[v])
     n_unique_val = floor(n_unique * percent_train)
+    '''
     
     val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, 
-                                               f'trainsize_{n_train_ood[v]}_{n_unique_val}')
+                                               f'trainsize_{n_train_ood[v]}_{n_unique_train}')
     
     if not os.path.exists(val_dir):
         call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
-                            val_dir, rotation, scaling, n_train_tokens=n_unique_val)
+                            val_dir, rotation, scaling, n_train_tokens=n_train_tokens, n_val_tokens=n_val_tokens,
+                            n_test_tokens=n_test_tokens)
     
     val_dataset = SameDifferentDataset(val_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
@@ -524,6 +560,8 @@ exp_config = {
     'aug': aug_string,
     'train_size': n_train,
     'n_train_tokens': n_unique_train,
+    'n_val_tokens': n_unique_val,
+    'n_test_tokens': n_test_tokens,
     'learning_rate': lr,
     'scheduler': lr_scheduler,
     'decay_rate': decay_rate,
@@ -536,12 +574,12 @@ exp_config = {
 
 # Initialize Weights & Biases project & table
 if wandb_entity:
-    wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity)
+    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity, dir="/scratch/art481/same-different-transformers/wandb")
 else:
-    wandb.init(project=wandb_proj, config=exp_config)
+    run = wandb.init(project=wandb_proj, config=exp_config, dir="/scratch/art481/same-different-transformers/wandb")
 
 run_id = wandb.run.id
-wandb.run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}_{aug_string}_LR{lr}_{run_id}'
+run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}_{aug_string}_LR{lr}_{run_id}'
 
 # Log model predictions
 pred_columns = ['Training Epoch', 'File Name', 'Image', 'Dataset', 'Prediction',

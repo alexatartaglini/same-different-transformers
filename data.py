@@ -11,10 +11,9 @@ from math import floor
 
 
 abbreviated_ds = {'OBJ': 'OBJECTSALL',
-                  'LET': 'LETTERS',
                   'SQU': 'SQUIGGLES',
                   'DEV': 'DEVELOPMENTAL',
-                  'OMN': 'OMNIGLOT',
+                  'ALP': 'ALPHANUMERIC',
                   'GRAY_OBJ': 'GRAYSCALE_OBJECTSALL',
                   'MASK_OBJ': 'MASK_OBJECTSALL',
                   'GRAY_DEV': 'GRAYSCALE_DEVELOPMENTAL',
@@ -363,7 +362,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
 
 
 def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling,
-                        im_size=224, n_train_tokens=-1):
+                        im_size=224, n_train_tokens=-1, n_val_tokens=-1, n_test_tokens=-1):
 
     assert im_size % patch_size == 0
     
@@ -426,9 +425,23 @@ def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multip
     else: 
         n_unique_train = n_train_tokens
         remainder = n_unique - n_train_tokens
-        
-        n_unique_val = remainder // 2
-        n_unique_test = remainder // 2
+        if n_val_tokens == -1:
+            if n_test_tokens == -1:
+                n_unique_val = remainder // 2
+                n_unique_test = remainder // 2
+            else:
+                assert n_test_tokens < remainder
+                n_unique_val = remainder - n_test_tokens
+                n_unique_test = n_test_tokens
+        else:
+            if n_test_tokens == -1:
+                assert n_val_tokens < remainder
+                n_unique_val = n_val_tokens
+                n_unique_test = remainder - n_val_tokens
+            else:
+                assert n_val_tokens + n_test_tokens <= remainder
+                n_unique_val = n_val_tokens
+                n_unique_test = n_test_tokens
         
     # Allocate unique objects
     ofs = object_files  # Copy of object_files to sample from
@@ -461,8 +474,7 @@ if __name__ == "__main__":
     parser.add_argument('--patch_size', type=int, default=32, help='Size of patch (eg. 16 or 32).')
     parser.add_argument('--n_train', type=int, default=6400,
                         help='Total # of training stimuli. eg. if n_train=6400, a dataset'
-                             'will be generated with 3200 same and 3200 different stimuli.'
-                             'Brady lab: 6400, Developmental: 1024, Omniglot: 2088.')
+                             'will be generated with 3200 same and 3200 different stimuli.')
     parser.add_argument('--n_val', type=int, default=-1,
                         help='Total # validation stimuli. Default: equal to n_train.')
     parser.add_argument('--n_test', type=int, default=-1,

@@ -572,12 +572,12 @@ exp_config = {
 
 # Initialize Weights & Biases project & table
 if wandb_entity:
-    wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity)
+    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity)
 else:
-    wandb.init(project=wandb_proj, config=exp_config)
+    run = wandb.init(project=wandb_proj, config=exp_config)
 
 run_id = wandb.run.id
-wandb.run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}_{aug_string}_LR{lr}_{run_id}'
+run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}_{aug_string}_LR{lr}_{run_id}'
 
 # Log model predictions
 pred_columns = ['Training Epoch', 'File Name', 'Image', 'Dataset', 'Prediction',

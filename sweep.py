@@ -1,5 +1,6 @@
 import wandb
 import argparse
+import subprocess
 
 
 parser = argparse.ArgumentParser()
@@ -16,6 +17,7 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers.')
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
+parser.add_argumet('--slurm', action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -78,4 +80,14 @@ if args.model_type == 'resnet' or args.model_type == 'clip_rn':
     sweep_configuration['parameters']['cnn_size'] = {'values': [args.cnn_size]}
     
 sweep_id = wandb.sweep(sweep=sweep_configuration, project=args.wandb_proj, entity=args.wandb_entity)
-wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)
+
+if args.slurm:  # Parallelize across multiple GPUs
+    sp = []
+    for i in range(4):
+        sp.append(subprocess.Popen(['srun',
+                    'agents.sh',
+                    i,
+                    f'{args.wandb_entity}/{args.wandb_proj}/{sweep_id}']))
+    exit_codes = [p.wait() for p in sp]
+else:
+    wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)

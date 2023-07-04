@@ -510,10 +510,10 @@ if not os.path.exists(train_dir):
                         n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)
     
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
 
 val_dataset = SameDifferentDataset(train_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
     
 # Construct other validation sets
 val_datasets = [val_dataset]

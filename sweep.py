@@ -72,6 +72,7 @@ sweep_configuration = {
         'num_epochs': {'values': [70]},
         'wandb_proj': {'values': [args.wandb_proj]},
         'wandb_entity': {'values': [args.wandb_entity]},
+        'wandb_cache_dir': {'values': ['../../../home/art481/.cache']},
         'model_type': {'values': [args.model_type]}
         }
     }

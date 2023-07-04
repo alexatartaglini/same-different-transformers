@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch
 import argparse
 import os
+import shutil
 from sklearn.metrics import accuracy_score
 import wandb
 import numpy as np
@@ -144,9 +145,18 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 metric_dict['val_acc_{0}'.format(val_label)] = epoch_acc_val
            
         if epoch in log_preds_epochs:
-            test_data_at = wandb.Artifact(f'test_errors_{run_id}_{epoch}', type='predictions')
-            test_data_at.add(test_table, 'predictions')
-            wandb.run.log_artifact(test_data_at).wait() 
+            try:
+                test_data_at = wandb.Artifact(f'test_errors_{run_id}_{epoch}', type='predictions')
+                test_data_at.add(test_table, 'predictions')
+                wandb.run.log_artifact(test_data_at).wait() 
+            except OSError:
+                try:
+                    shutil.rmtree(args.wandb_cache_dir)  # This is specific to my machine
+                    test_data_at = wandb.Artifact(f'test_errors_{run_id}_{epoch}', type='predictions')
+                    test_data_at.add(test_table, 'predictions')
+                    wandb.run.log_artifact(test_data_at).wait() 
+                except OSError:
+                    pass
             
         if scheduler:
             scheduler.step(metric_dict[f'val_acc_{val_labels[0]}'])  # Reduce LR based on validation accuracy
@@ -236,6 +246,8 @@ parser.add_argument('--save_model_freq', help='Number of times to save model che
 parser.add_argument('--log_preds_freq', help='Number of times to log model predictions \
                     on test sets throughout training. Saves are equally spaced from 0 to num_epochs.',
                     type=int, default=3)
+parser.add_argument('--wandb_cache_dir', help='Directory for WandB cache. May need to be cleared \
+                    depending on available storage in order to store artifacts.', default=None)
 
 args = parser.parse_args()
 
@@ -498,10 +510,10 @@ if not os.path.exists(train_dir):
                         n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)
     
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
 
 val_dataset = SameDifferentDataset(train_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
     
 # Construct other validation sets
 val_datasets = [val_dataset]

@@ -72,8 +72,9 @@ sweep_configuration = {
         'wandb_proj': {'values': [args.wandb_proj]},
         'wandb_entity': {'values': [args.wandb_entity]},
         'wandb_cache_dir': {'values': ['../../../home/art481/.cache']},
-        'num_gpus': {'values': args.num_gpus},
-        'model_type': {'values': [args.model_type]}
+        'num_gpus': {'values': [args.num_gpus]},
+        'model_type': {'values': [args.model_type]},
+        'batch_size': {'values': [128]}
         }
     }
 

@@ -539,7 +539,7 @@ for v in range(len(val_datasets_names)):
                             n_test_tokens=n_test_tokens)
     
     val_dataset = SameDifferentDataset(val_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-    val_dataloader = DataLoader(val_dataset, batch_size=n_val_ood[v], shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=n_val_ood[v], shuffle=True, num_workers=args.num_gpus)
     
     val_datasets.append(val_dataset)
     val_dataloaders.append(val_dataloader)

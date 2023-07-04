@@ -17,8 +17,7 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
                     help='Only train the final layer; freeze all other layers.')
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
-parser.add_argument('--slurm', action='store_true', default=False)
-parser.add_argument('--n_gpus', type=int, default=4, required=False)
+parser.add_argument('--num_gpus', type=int, default=1, required=False)
 
 args = parser.parse_args()
 
@@ -73,6 +72,7 @@ sweep_configuration = {
         'wandb_proj': {'values': [args.wandb_proj]},
         'wandb_entity': {'values': [args.wandb_entity]},
         'wandb_cache_dir': {'values': ['../../../home/art481/.cache']},
+        'num_gpus': {'values': args.num_gpus},
         'model_type': {'values': [args.model_type]}
         }
     }
@@ -82,14 +82,4 @@ if args.model_type == 'resnet' or args.model_type == 'clip_rn':
     sweep_configuration['parameters']['cnn_size'] = {'values': [args.cnn_size]}
     
 sweep_id = wandb.sweep(sweep=sweep_configuration, project=args.wandb_proj, entity=args.wandb_entity)
-
-if args.slurm:  # Parallelize across multiple GPUs
-    sp = []
-    for i in range(args.n_gpus):
-        sp.append(subprocess.Popen(['srun',
-                    'agents.sh',
-                    str(i),
-                    f'{args.wandb_entity}/{args.wandb_proj}/{sweep_id}']))
-    exit_codes = [p.wait() for p in sp]
-else:
-    wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)
+wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)

@@ -181,6 +181,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--wandb_proj', type=str, default='same-different-transformers',
                     help='Name of WandB project to store the run in.')
 parser.add_argument('--wandb_entity', type=str, default=None, help='Team to send run to.')
+parser.add_argument('--num_gpus', type=int, help='number of available GPUs.', default=1)
 
 # Model/architecture arguments
 parser.add_argument('-m', '--model_type', help='Model to train: resnet, vit, clip_rn, clip_vit.',
@@ -510,10 +511,10 @@ if not os.path.exists(train_dir):
                         n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)
     
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus)
 
 val_dataset = SameDifferentDataset(train_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus)
     
 # Construct other validation sets
 val_datasets = [val_dataset]

@@ -514,7 +514,7 @@ train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, 
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus)
 
 val_dataset = SameDifferentDataset(train_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus)
+val_dataloader = DataLoader(val_dataset, batch_size=n_val, shuffle=True, num_workers=args.num_gpus)
     
 # Construct other validation sets
 val_datasets = [val_dataset]
@@ -539,7 +539,7 @@ for v in range(len(val_datasets_names)):
                             n_test_tokens=n_test_tokens)
     
     val_dataset = SameDifferentDataset(val_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=n_val_ood[v], shuffle=True)
     
     val_datasets.append(val_dataset)
     val_dataloaders.append(val_dataloader)

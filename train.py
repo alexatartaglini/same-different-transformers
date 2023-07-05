@@ -84,7 +84,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                        'lr': optimizer.param_groups[0]['lr']}
 
         # Save the model
-        if epoch in save_model_epochs:
+        if epoch in save_model_epochs and args.checkpoint:
             torch.save(model.state_dict(), f'{log_dir}/model_{epoch}_{lr}_{wandb.run.id}.pth')
 
         # Perform evaluations
@@ -244,6 +244,8 @@ parser.add_argument('--n_test_ood', nargs='+', required=False, default=[],
 parser.add_argument('--save_model_freq', help='Number of times to save model checkpoints \
                     throughout training. Saves are equally spaced from 0 to num_epoch.', type=int,
                     default=3)
+parser.add_argument('--checkpoint', help='Whether or not to store model checkpoints.', action='store_true',
+                    default=False)
 parser.add_argument('--log_preds_freq', help='Number of times to log model predictions \
                     on test sets throughout training. Saves are equally spaced from 0 to num_epochs.',
                     type=int, default=3)

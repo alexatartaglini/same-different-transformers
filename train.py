@@ -606,3 +606,4 @@ test_table = wandb.Table(columns=pred_columns)
 model = train_model(args, model, device, train_dataloader, len(train_dataset), 
                     optimizer, scheduler, log_dir, val_datasets, val_dataloaders,
                     test_table, val_labels)
+wandb.finish()

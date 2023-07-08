@@ -157,6 +157,8 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     wandb.run.log_artifact(test_data_at).wait() 
                 except OSError:
                     pass
+                except TypeError:
+                    pass
             
         if scheduler:
             scheduler.step(metric_dict[f'val_acc_{val_labels[0]}'])  # Reduce LR based on validation accuracy
@@ -288,6 +290,10 @@ n_train_ood = args.n_train_ood
 n_val_ood = args.n_val_ood
 n_test_ood = args.n_test_ood
 
+if n_train_tokens > n_train:
+    print('n_train_tokens > n_train. train.py exiting...')
+    sys.exit(0)
+
 # Default behavior for n_val, n_test
 if val_datasets_names == 'all':
     val_datasets_names = [name for name in os.listdir('stimuli/source') if os.path.isdir(f'stimuli/source/{name}')]
@@ -412,23 +418,24 @@ elif 'clip' in model_type:
         model_string = model_string = 'clip_vit_b{0}'.format(patch_size)
         
         if pretrained:
-            model, transform = clip.load(f'ViT-B/{patch_size}', device=device)
+            model, transform = clip.load(f'ViT-B/{patch_size}', device=device, download_root='scratch/art481/same-different-transformers/clip')
         else:
             sys.exit(1)
+        in_features = model.visual.proj.shape[1]
     else:
         model_string = 'clip_resnet50'
         
         if pretrained:
-            model, transform = clip.load('RN50', device=device)
+            model, transform = clip.load('RN50', device=device, download_root='scratch/art481/same-different-transformers/clip')
         else:
             sys.exit(1)
+        in_features = model.visual.output_dim
     
     if feature_extract:
         for name, param in model.visual.named_parameters():
             param.requires_grad = False
     
     # Add classification head to vision encoder
-    in_features = model.visual.proj.shape[1]
     fc = nn.Linear(in_features, 2).to(device)
     model = nn.Sequential(model.visual, fc).float()
 

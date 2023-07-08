@@ -412,14 +412,14 @@ elif 'clip' in model_type:
         model_string = model_string = 'clip_vit_b{0}'.format(patch_size)
         
         if pretrained:
-            model, transform = clip.load(f'ViT-B/{patch_size}', device=device)
+            model, transform = clip.load(f'ViT-B/{patch_size}', device=device, download_root='scratch/art481/same-different-transformers/clip')
         else:
             sys.exit(1)
     else:
         model_string = 'clip_resnet50'
         
         if pretrained:
-            model, transform = clip.load('RN50', device=device)
+            model, transform = clip.load('RN50', device=device, download_root='scratch/art481/same-different-transformers/clip')
         else:
             sys.exit(1)
     

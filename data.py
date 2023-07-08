@@ -479,6 +479,12 @@ if __name__ == "__main__":
                         help='Total # validation stimuli. Default: equal to n_train.')
     parser.add_argument('--n_test', type=int, default=-1,
                         help='Total # test stimuli. Default: equal to n_train.')
+    parser.add_argument('--n_train_tokens', type=int, default=-1, help='Number of unique tokens to use \
+                        in the training dataset. If -1, then the maximum number of tokens is used.')
+    parser.add_argument('--n_val_tokens', type=int, default=-1, help='Number of unique tokens to use \
+                        in the validation dataset. If -1, then number tokens = (total - n_train_tokens) // 2.')
+    parser.add_argument('--n_test_tokens', type=int, default=-1, help='Number of unique tokens to use \
+                        in the test dataset. If -1, then number tokens = (total - n_train_tokens) // 2.')
     parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
     parser.add_argument('--unaligned', action='store_true', default=False,
                         help='Misalign the objects from ViT patches (ie. place randomly).')
@@ -498,6 +504,9 @@ if __name__ == "__main__":
     n_train = args.n_train  # Size of training set
     n_val = args.n_val  # Size of validation set
     n_test = args.n_test  # Size of test set
+    n_train_tokens = args.n_train_tokens
+    n_val_tokens = args.n_val_tokens
+    n_test_tokens = args.n_test_tokens
     k = args.k  # Number of objects per image
     unaligned = args.unaligned  # False = objects align with ViT patches
     multiplier = args.multiplier
@@ -511,4 +520,5 @@ if __name__ == "__main__":
     if n_test == -1:
         n_test = n_train
 
-    call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling)
+    call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling,
+                        n_train_tokens=-1, n_val_tokens=-1, n_test_tokens=-1)

@@ -113,4 +113,18 @@ if args.model_type == 'resnet' or args.model_type == 'clip_rn':
     sweep_configuration['parameters']['cnn_size'] = {'values': [args.cnn_size]}
     
 sweep_id = wandb.sweep(sweep=sweep_configuration, project=args.wandb_proj, entity=args.wandb_entity)
+<<<<<<< HEAD
+
+if args.slurm:  # Parallelize across multiple GPUs
+    sp = []
+    for i in range(args.n_gpus):
+        sp.append(subprocess.Popen(['srun',
+                    'agents.sh',
+                    str(i),
+                    f'{args.wandb_entity}/{args.wandb_proj}/{sweep_id}']))
+    exit_codes = [p.wait() for p in sp]
+else:
+    wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)
+=======
 wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)
+>>>>>>> 47da5c4faee0a33857e9216faab830fe7a9ed6f6

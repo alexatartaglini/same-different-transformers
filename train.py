@@ -324,15 +324,15 @@ if n_test == -1:
 if len(n_train_ood) == 0:
     n_train_ood = [n_train for _ in range(len(val_datasets_names))]
 elif len(n_train_ood) == 1:
-    n_train_ood = [n_train_ood[0] for _ in range(len(val_datasets_names))]
+    n_train_ood = [int(n_train_ood[0]) for _ in range(len(val_datasets_names))]
 if len(n_val_ood) == 0:
     n_val_ood = n_train_ood
 elif len(n_val_ood) == 1:
-    n_val_ood = [n_val_ood[0] for _ in range(len(val_datasets_names))]
+    n_val_ood = [int(n_val_ood[0]) for _ in range(len(val_datasets_names))]
 if len(n_test_ood) == 0:
     n_test_ood = n_train_ood
 elif len(n_test_ood) == 1:
-    n_test_ood = [n_test_ood[0] for _ in range(len(val_datasets_names))]
+    n_test_ood = [int(n_test_ood[0]) for _ in range(len(val_datasets_names))]
 
 # Ensure that stimuli are 64x64
 if model_type == 'vit' or model_type == 'clip_vit':
@@ -518,21 +518,21 @@ else:
 if len(n_train_tokens_ood) == 0:
     n_train_tokens_ood = [n_unique_train for _ in range(len(val_datasets_names))]
 elif len(n_train_tokens_ood) == 1:
-    n_train_tokens_ood = [n_train_tokens_ood[0] for _ in range(len(val_datasets_names))]
+    n_train_tokens_ood = [int(n_train_tokens_ood[0]) for _ in range(len(val_datasets_names))]
 else:
     assert len(n_train_tokens_ood) == len(val_datasets_names)
     
 if len(n_val_tokens_ood) == 0:
     n_val_tokens_ood = [n_unique_val for _ in range(len(val_datasets_names))]
 elif len(n_val_tokens_ood) == 1:
-    n_val_tokens_ood = [n_val_tokens_ood[0] for _ in range(len(val_datasets_names))]
+    n_val_tokens_ood = [int(n_val_tokens_ood[0]) for _ in range(len(val_datasets_names))]
 else:
     assert len(n_val_tokens_ood) == len(val_datasets_names)   
     
 if len(n_test_tokens_ood) == 0:
     n_test_tokens_ood = [n_unique_test for _ in range(len(val_datasets_names))]
 elif len(n_test_tokens_ood) == 1:
-    n_test_tokens_ood = [n_test_tokens_ood[0] for _ in range(len(val_datasets_names))]
+    n_test_tokens_ood = [int(n_test_tokens_ood[0]) for _ in range(len(val_datasets_names))]
 else:
     assert len(n_test_tokens_ood) == len(val_datasets_names) 
 

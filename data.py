@@ -521,4 +521,4 @@ if __name__ == "__main__":
         n_test = n_train
 
     call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling,
-                        n_train_tokens=-1, n_val_tokens=-1, n_test_tokens=-1)
+                        n_train_tokens=n_train_tokens, n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)

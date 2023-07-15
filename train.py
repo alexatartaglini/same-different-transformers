@@ -303,9 +303,9 @@ n_val_tokens_ood = args.n_val_tokens_ood
 n_test_ood = args.n_test_ood
 n_test_tokens_ood = args.n_test_tokens_ood
 
-if n_train_tokens > n_train:
-    print('n_train_tokens > n_train. train.py exiting...')
-    sys.exit(0)
+# if n_train_tokens > n_train:
+#     print('n_train_tokens > n_train. train.py exiting...')
+#     sys.exit(0)
 
 # Default behavior for n_val, n_test
 if val_datasets_names == 'all':

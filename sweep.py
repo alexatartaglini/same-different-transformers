@@ -18,6 +18,8 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
 parser.add_argument('--num_gpus', type=int, default=1, required=False)
+parser.add_argument('--rotation', action='store_true', default=False)
+parser.add_argument('--scaling', action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -28,10 +30,20 @@ model_names = {
     'clip_rn': f'ResNet-{args.cnn_size}',
     'clip_vit': f'ViT-B/{args.patch_size}'
     }
-sweep_name = model_names[args.model_type]
+
+if args.rotation and args.scaling:
+    sweep_name = model_names[args.model_type] + ' Rotation and Scaling'
+elif args.rotation:
+    sweep_name = model_names[args.model_type] + ' Rotation'
+elif args.scaling:
+    sweep_name = model_names[args.model_type] + ' Scaling'
+else:
+    sweep_name = model_names[args.model_type] + ' No Augmentations'
 
 # Define command structure + specify sweep name
-commands = ['${env}', '${interpreter}', '${program}', '--unaligned', '--rotation', '--scaling']
+#commands = ['${env}', '${interpreter}', '${program}', '--unaligned', '--rotation', '--scaling']
+
+commands = ['${env}', '${interpreter}', '${program}', '--unaligned']
 
 if args.pretrained:
     commands += ['--pretrained']
@@ -83,18 +95,4 @@ if args.model_type == 'resnet' or args.model_type == 'clip_rn':
     sweep_configuration['parameters']['cnn_size'] = {'values': [args.cnn_size]}
     
 sweep_id = wandb.sweep(sweep=sweep_configuration, project=args.wandb_proj, entity=args.wandb_entity)
-<<<<<<< HEAD
-
-if args.slurm:  # Parallelize across multiple GPUs
-    sp = []
-    for i in range(args.n_gpus):
-        sp.append(subprocess.Popen(['srun',
-                    'agents.sh',
-                    str(i),
-                    f'{args.wandb_entity}/{args.wandb_proj}/{sweep_id}']))
-    exit_codes = [p.wait() for p in sp]
-else:
-    wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)
-=======
 wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)
->>>>>>> 47da5c4faee0a33857e9216faab830fe7a9ed6f6

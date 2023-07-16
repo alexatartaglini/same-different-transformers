@@ -44,6 +44,10 @@ else:
 #commands = ['${env}', '${interpreter}', '${program}', '--unaligned', '--rotation', '--scaling']
 
 commands = ['${env}', '${interpreter}', '${program}', '--unaligned']
+if args.rotation:
+    commands += ['--rotation']
+if args.scaling:
+    commands += ['--scaling']
 
 if args.pretrained:
     commands += ['--pretrained']
@@ -55,7 +59,7 @@ else:
     sweep_name = f'From Scratch {sweep_name}'
     
 if args.feature_extract:
-    commands += '--feature_extract'
+    commands += ['--feature_extract']
     sweep_name += ' Feature Extract'
     
 commands += ['${args}']

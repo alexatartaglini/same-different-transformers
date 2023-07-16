@@ -151,7 +151,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 wandb.run.log_artifact(test_data_at).wait() 
             except OSError:
                 try:
-                    shutil.rmtree(args.wandb_cache_dir)  # This is specific to my machine
+                    shutil.rmtree(args.wandb_cache_dir) 
                     test_data_at = wandb.Artifact(f'test_errors_{run_id}_{epoch}', type='predictions')
                     test_data_at.add(test_table, 'predictions')
                     wandb.run.log_artifact(test_data_at).wait() 
@@ -231,16 +231,22 @@ parser.add_argument('--n_val_tokens', type=int, default=-1, help='Number of uniq
                     in the validation dataset. If -1, then number tokens = (total - n_train_tokens) // 2.')
 parser.add_argument('--n_test_tokens', type=int, default=-1, help='Number of unique tokens to use \
                     in the test dataset. If -1, then number tokens = (total - n_train_tokens) // 2.')
-parser.add_argument('--n_val', type=float, default=-1,
+parser.add_argument('--n_val', type=int, default=-1,
                     help='Total # validation stimuli. Default: equal to n_train.')
-parser.add_argument('--n_test', type=float, default=-1,
+parser.add_argument('--n_test', type=int, default=-1,
                     help='Total # test stimuli. Default: equal to n_train.')
 parser.add_argument('--n_train_ood', nargs='+', required=False, default=[],
                     help='Size of OOD training sets.')
+parser.add_argument('--n_train_tokens_ood', nargs='+', required=False, default=[],
+                    help='Number of unique tokens in OOD training sets. Default: n_train_tokens.')
 parser.add_argument('--n_val_ood', nargs='+', required=False, default=[],
                     help='Size of OOD validation sets. Default: equal to n_train_ood.')
+parser.add_argument('--n_val_tokens_ood', nargs='+', required=False, default=[],
+                    help='Number of unique tokens in OOD validation sets. Default: n_val_tokens.')
 parser.add_argument('--n_test_ood', nargs='+', required=False, default=[],
                     help='Size of OOD test sets. Default: equal to n_train_ood.')
+parser.add_argument('--n_test_tokens_ood', nargs='+', required=False, default=[],
+                    help='Number of unique tokens in OOD test sets. Default: n_test_tokens.')
 
 # Paremeters for logging, storing models, etc.
 parser.add_argument('--save_model_freq', help='Number of times to save model checkpoints \
@@ -253,6 +259,10 @@ parser.add_argument('--log_preds_freq', help='Number of times to log model predi
                     type=int, default=3)
 parser.add_argument('--wandb_cache_dir', help='Directory for WandB cache. May need to be cleared \
                     depending on available storage in order to store artifacts.', default=None)
+parser.add_argument('--clip_dir', help='Directory where CLIP models should be downloaded.',
+                    default=None)
+parser.add_argument('--wandb_run_dir', help='Directory where WandB runs should be stored.',
+                    default=None)
 
 args = parser.parse_args()
 
@@ -282,17 +292,20 @@ multiplier = args.multiplier
 
 n_train = args.n_train
 n_train_tokens = args.n_train_tokens
-n_val_tokens = args.n_val_tokens
-n_test_tokens = args.n_test_tokens
 n_val = args.n_val
+n_val_tokens = args.n_val_tokens
 n_test = args.n_test
+n_test_tokens = args.n_test_tokens
 n_train_ood = args.n_train_ood
+n_train_tokens_ood = args.n_train_tokens_ood
 n_val_ood = args.n_val_ood
+n_val_tokens_ood = args.n_val_tokens_ood
 n_test_ood = args.n_test_ood
+n_test_tokens_ood = args.n_test_tokens_ood
 
-if n_train_tokens > n_train:
-    print('n_train_tokens > n_train. train.py exiting...')
-    sys.exit(0)
+# if n_train_tokens > n_train:
+#     print('n_train_tokens > n_train. train.py exiting...')
+#     sys.exit(0)
 
 # Default behavior for n_val, n_test
 if val_datasets_names == 'all':
@@ -307,12 +320,19 @@ if n_val == -1:
     n_val = n_train
 if n_test == -1:
     n_test = n_train
+    
 if len(n_train_ood) == 0:
     n_train_ood = [n_train for _ in range(len(val_datasets_names))]
+elif len(n_train_ood) == 1:
+    n_train_ood = [int(n_train_ood[0]) for _ in range(len(val_datasets_names))]
 if len(n_val_ood) == 0:
     n_val_ood = n_train_ood
+elif len(n_val_ood) == 1:
+    n_val_ood = [int(n_val_ood[0]) for _ in range(len(val_datasets_names))]
 if len(n_test_ood) == 0:
     n_test_ood = n_train_ood
+elif len(n_test_ood) == 1:
+    n_test_ood = [int(n_test_ood[0]) for _ in range(len(val_datasets_names))]
 
 # Ensure that stimuli are 64x64
 if model_type == 'vit' or model_type == 'clip_vit':
@@ -418,7 +438,7 @@ elif 'clip' in model_type:
         model_string = model_string = 'clip_vit_b{0}'.format(patch_size)
         
         if pretrained:
-            model, transform = clip.load(f'ViT-B/{patch_size}', device=device, download_root='scratch/art481/same-different-transformers/clip')
+            model, transform = clip.load(f'ViT-B/{patch_size}', device=device, download_root=args.clip_dir)
         else:
             sys.exit(1)
         in_features = model.visual.proj.shape[1]
@@ -426,7 +446,7 @@ elif 'clip' in model_type:
         model_string = 'clip_resnet50'
         
         if pretrained:
-            model, transform = clip.load('RN50', device=device, download_root='scratch/art481/same-different-transformers/clip')
+            model, transform = clip.load('RN50', device=device, download_root=args.clip_dir)
         else:
             sys.exit(1)
         in_features = model.visual.output_dim
@@ -494,8 +514,29 @@ else:
             assert n_val_tokens + n_test_tokens <= remainder
             n_unique_val = n_val_tokens
             n_unique_test = n_test_tokens
+            
+if len(n_train_tokens_ood) == 0:
+    n_train_tokens_ood = [n_unique_train for _ in range(len(val_datasets_names))]
+elif len(n_train_tokens_ood) == 1:
+    n_train_tokens_ood = [int(n_train_tokens_ood[0]) for _ in range(len(val_datasets_names))]
+else:
+    assert len(n_train_tokens_ood) == len(val_datasets_names)
+    
+if len(n_val_tokens_ood) == 0:
+    n_val_tokens_ood = [n_unique_val for _ in range(len(val_datasets_names))]
+elif len(n_val_tokens_ood) == 1:
+    n_val_tokens_ood = [int(n_val_tokens_ood[0]) for _ in range(len(val_datasets_names))]
+else:
+    assert len(n_val_tokens_ood) == len(val_datasets_names)   
+    
+if len(n_test_tokens_ood) == 0:
+    n_test_tokens_ood = [n_unique_test for _ in range(len(val_datasets_names))]
+elif len(n_test_tokens_ood) == 1:
+    n_test_tokens_ood = [int(n_test_tokens_ood[0]) for _ in range(len(val_datasets_names))]
+else:
+    assert len(n_test_tokens_ood) == len(val_datasets_names) 
 
-path_elements = [model_string, train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}_{n_unique_train}']
+path_elements = [model_string, train_dataset_string, pos_string, aug_string, f'trainsize_{n_train}_{n_unique_train}-{n_unique_val}-{n_unique_test}']
 
 for root in ['logs']:
     stub = root
@@ -508,11 +549,11 @@ for root in ['logs']:
         stub = '{0}/{1}'.format(stub, p)
 
 log_dir = 'logs/{0}/{1}/{2}/{3}/{4}'.format(model_string, train_dataset_string, pos_string, aug_string, 
-                                            f'trainsize_{n_train}_{n_unique_train}')
+                                            f'trainsize_{n_train}_{n_unique_train}-{n_unique_val}-{n_unique_test}')
 
 # Construct train set + DataLoader
 train_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(train_dataset_string, pos_string, aug_string, 
-                                             f'trainsize_{n_train}_{n_unique_train}')
+                                             f'trainsize_{n_train}_{n_unique_train}-{n_unique_val}-{n_unique_test}')
 
 if not os.path.exists(train_dir):
     call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, 
@@ -531,21 +572,13 @@ val_dataloaders = [val_dataloader]
 val_labels = [train_dataset_string]
 
 for v in range(len(val_datasets_names)):
-    '''
-    n_unique = len([f for f in os.listdir(f'stimuli/source/{val_datasets_names[v]}') 
-                    if os.path.isfile(os.path.join(f'stimuli/source/{val_datasets_names[v]}', f)) 
-                    and f != '.DS_Store'])
-    percent_train = n_train_ood[v] / (n_train_ood[v] + n_val_ood[v] + n_test_ood[v])
-    n_unique_val = floor(n_unique * percent_train)
-    '''
-    
     val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, 
-                                               f'trainsize_{n_train_ood[v]}_{n_unique_train}')
+                                               f'trainsize_{n_train_ood[v]}_{n_train_tokens_ood[v]}-{n_val_tokens_ood[v]}-{n_test_tokens_ood[v]}')
     
     if not os.path.exists(val_dir):
         call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
-                            val_dir, rotation, scaling, n_train_tokens=n_train_tokens, n_val_tokens=n_val_tokens,
-                            n_test_tokens=n_test_tokens)
+                            val_dir, rotation, scaling, n_train_tokens=n_train_tokens_ood[v], n_val_tokens=n_val_tokens_ood[v],
+                            n_test_tokens=n_test_tokens_ood[v])
     
     val_dataset = SameDifferentDataset(val_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
     val_dataloader = DataLoader(val_dataset, batch_size=n_val_ood[v] // 4, shuffle=True)
@@ -596,12 +629,12 @@ exp_config = {
 
 # Initialize Weights & Biases project & table
 if wandb_entity:
-    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity, dir="/scratch/art481/same-different-transformers/wandb")
+    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity, dir=args.wandb_run_dir)
 else:
-    run = wandb.init(project=wandb_proj, config=exp_config, dir="/scratch/art481/same-different-transformers/wandb")
+    run = wandb.init(project=wandb_proj, config=exp_config, dir=args.wandb_run_dir)
 
 run_id = wandb.run.id
-run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}_{aug_string}_LR{lr}_{run_id}'
+run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}-{n_unique_val}-{n_unique_test}_{aug_string}_LR{lr}_{run_id}'
 
 # Log model predictions
 pred_columns = ['Training Epoch', 'File Name', 'Image', 'Dataset', 'Prediction',

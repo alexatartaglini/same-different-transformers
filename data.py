@@ -74,7 +74,7 @@ class SameDifferentDataset(Dataset):
         return item, im_path
 
 
-def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, stim_dir,
+def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, stim_type,
                    patch_dir, condition, rotation=False, scaling=False):
     '''
     Creates n same_different stimuli with (n // 2) stimuli assigned to each class. If
@@ -97,7 +97,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
     :param multiplier: Scalar by which to multiply object size. (object size = patch_size
                        * multiplier)
     :param im_size: Size of the base image.
-    :param stim_dir: Directory of the objects to be used in creating the set.
+    :param stim_type: Name of source dataset used to construct data.
     :param patch_dir: Relevant location to store the created stimuli.
     :param condition: train, test, or val.
     '''
@@ -125,7 +125,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
         all_different_pairs = list(itertools.combinations(obj_sample, k))
         
         # Make sure different stimuli are different in shape AND texture
-        if stim_dir == 'DEVELOPMENTAL' or 'DEV' in stim_dir:
+        if stim_type == 'DEVELOPMENTAL' or 'DEV' in stim_type:
             for pair in all_different_pairs:
                 if '-' in pair[0] and '-' in pair[1]:
                     obj1 = pair[0].split('-')
@@ -173,7 +173,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
         all_different_pairs = list(itertools.combinations(objects, k))
         
         # Make sure different stimuli are different in shape AND texture
-        if stim_dir == 'DEVELOPMENTAL' or 'DEV' in stim_dir:
+        if stim_type == 'DEVELOPMENTAL' or 'DEV' in stim_type:
             for pair in all_different_pairs:
                 if '-' in pair[0] and '-' in pair[1]:
                     obj1 = pair[0].split('-')
@@ -292,16 +292,19 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
     object_ims_all = {}
 
     for o in objects:
-        if '-' in stim_dir:
+        if '-' in stim_type:
             im = Image.open('stimuli/source/{0}/{1}'.format(obj_dict[o], o)).convert('RGB')
         else:
-            im = Image.open('stimuli/source/{0}/{1}'.format(stim_dir, o)).convert('RGB')
+            im = Image.open('stimuli/source/{0}/{1}'.format(stim_type, o)).convert('RGB')
         im = im.resize((obj_size, obj_size))
         object_ims_all[o] = im
 
     for sd_class, item_dict in zip(['same', 'different'], [same_pairs, different_pairs]):
 
-        setting = '{0}/{1}/{2}'.format(patch_dir, condition, sd_class)
+        if condition is not None:
+            setting = '{0}/{1}/{2}'.format(patch_dir, condition, sd_class)
+        else: # called by call_create_devdis
+            setting = '{0}/{2}'.format(patch_dir, sd_class)
 
         for key in item_dict.keys():
             positions = item_dict[key]
@@ -361,12 +364,12 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
                 base.save('{0}/{1}_{2}_{3}.png'.format(setting, obj1.split('.')[0], obj2.split('.')[0], i), quality=100)
 
 
-def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling,
+def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, patch_dir, rotation, scaling,
                         im_size=224, n_train_tokens=-1, n_val_tokens=-1, n_test_tokens=-1):
 
     assert im_size % patch_size == 0
     
-    path_elements = stim_dir.split('/')
+    path_elements = patch_dir.split('/')
     
     stub = 'stimuli'
     for p in path_elements[1:]:
@@ -378,17 +381,17 @@ def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multip
 
     for condition in ['train', 'test', 'val']:
         try:
-            os.mkdir('{0}/{1}'.format(stim_dir, condition))
+            os.mkdir('{0}/{1}'.format(patch_dir, condition))
         except FileExistsError:
             pass
 
         try:
-            os.mkdir('{0}/{1}/same'.format(stim_dir, condition))
+            os.mkdir('{0}/{1}/same'.format(patch_dir, condition))
         except FileExistsError:
             pass
 
         try:
-            os.mkdir('{0}/{1}/different'.format(stim_dir, condition))
+            os.mkdir('{0}/{1}/different'.format(patch_dir, condition))
         except FileExistsError:
             pass
 
@@ -462,12 +465,49 @@ def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multip
            and set(object_files_test).isdisjoint(object_files_val)
 
     create_stimuli(k, n_train, object_files_train, unaligned, patch_size, multiplier,
-                   im_size, path_elements[1], stim_dir, 'train', rotation=rotation, scaling=scaling)
+                   im_size, path_elements[1], patch_dir, 'train', rotation=rotation, scaling=scaling)
     create_stimuli(k, n_val, object_files_val, unaligned, patch_size, multiplier,
-                   im_size, path_elements[1], stim_dir, 'val', rotation=rotation, scaling=scaling)
+                   im_size, path_elements[1], patch_dir, 'val', rotation=rotation, scaling=scaling)
     create_stimuli(k, n_test, object_files_test, unaligned, patch_size, multiplier,
-                   im_size, path_elements[1], stim_dir, 'test', rotation=rotation, scaling=scaling)
+                   im_size, path_elements[1], patch_dir, 'test', rotation=rotation, scaling=scaling)
 
+# TODO expand logic to k>2
+def call_create_devdis(patch_size, n_val, k, unaligned, multiplier, patch_dir, 
+                       rotation, scaling, devdis, im_size=224, n_val_tokens=300):
+
+    assert im_size % patch_size == 0
+    
+    path_elements = patch_dir.split('/')
+    
+    stub = 'stimuli'
+    for p in path_elements[1:]:
+        try:
+            os.mkdir('{0}/{1}'.format(stub, p))
+        except FileExistsError:
+            pass
+        stub = '{0}/{1}'.format(stub, p)
+
+    # we only need one same directory underneath the name
+    # e.g. DEVDIS001/unaligned/RS/valsize_6400/same/img.png
+    try:
+        os.mkdir('{0}/same'.format(patch_dir))
+    except FileExistsError:
+        pass
+
+    # Collect object image paths. Because this is devdis, we're using the 
+    # DEVELOPMENTAL source stimuli (and making some tint modifications online). 
+    object_files = [f for f in os.listdir(f'stimuli/source/DEVELOPMENTAL') 
+                    if os.path.isfile(os.path.join(f'stimuli/source/DEVELOPMENTAL', f)) 
+                    and f != '.DS_Store']
+
+    # There are 1792 DEVELOPMENTAL objects to work with. Use 300 unique tokens
+    # by default to match other experiments with this dataset size.
+    n_unique = len(object_files)
+    object_files_val = random.sample(object_files, k=n_val_tokens)
+
+    # TODO edit logic within this function on line 175 and __ to be able to change logic based on the stim_type
+    create_stimuli(k, n_val, object_files_val, unaligned, patch_size, multiplier,
+                im_size, devdis, patch_dir, None, rotation=rotation, scaling=scaling)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate data.')
@@ -490,8 +530,8 @@ if __name__ == "__main__":
                         help='Misalign the objects from ViT patches (ie. place randomly).')
     parser.add_argument('--multiplier', type=int, default=1, help='Factor by which to scale up '
                                                                   'stimulus size.')
-    parser.add_argument('--stim_dir', type=str, help='Stimulus subdirectory name (inside stimuli/source).', 
-                        default='OBJECTSALL')
+    parser.add_argument('--patch_dir', type=str, help='Directory to save results in inside `stimuli`', 
+                        default='OBJECTSALL/unaligned/N/trainsize_6400_1200-300-100')
     parser.add_argument('--rotation', action='store_true', default=False,
                         help='Randomly rotate the objects in the stimuli.')
     parser.add_argument('--scaling', action='store_true', default=False,
@@ -510,7 +550,7 @@ if __name__ == "__main__":
     k = args.k  # Number of objects per image
     unaligned = args.unaligned  # False = objects align with ViT patches
     multiplier = args.multiplier
-    stim_dir = args.stim_dir
+    patch_dir = args.patch_dir
     rotation = args.rotation
     scaling = args.scaling
     
@@ -520,5 +560,5 @@ if __name__ == "__main__":
     if n_test == -1:
         n_test = n_train
 
-    call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, stim_dir, rotation, scaling,
+    call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, patch_dir, rotation, scaling,
                         n_train_tokens=n_train_tokens, n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)

@@ -3,7 +3,7 @@ from transformers import ViTImageProcessor, ViTForImageClassification, ViTConfig
 #CLIPProcessor, CLIPModel, CLIPConfig
 import clip
 from torch.utils.data import DataLoader
-from data import SameDifferentDataset, call_create_stimuli
+from data import SameDifferentDataset, call_create_stimuli, call_create_devdis
 import torch.nn as nn
 import torch
 import argparse
@@ -556,6 +556,7 @@ train_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(train_dataset_string, pos_string, a
                                              f'trainsize_{n_train}_{n_unique_train}-{n_unique_val}-{n_unique_test}')
 
 if not os.path.exists(train_dir):
+    print(f"generating {train_dir}")
     call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, 
                         train_dir, rotation, scaling, n_train_tokens=n_train_tokens, 
                         n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)
@@ -576,6 +577,7 @@ for v in range(len(val_datasets_names)):
                                                f'trainsize_{n_train_ood[v]}_{n_train_tokens_ood[v]}-{n_val_tokens_ood[v]}-{n_test_tokens_ood[v]}')
     
     if not os.path.exists(val_dir):
+        print(f"generating {val_dir}")
         call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
                             val_dir, rotation, scaling, n_train_tokens=n_train_tokens_ood[v], n_val_tokens=n_val_tokens_ood[v],
                             n_test_tokens=n_test_tokens_ood[v])
@@ -586,7 +588,29 @@ for v in range(len(val_datasets_names)):
     val_datasets.append(val_dataset)
     val_dataloaders.append(val_dataloader)
     val_labels.append(val_datasets_names[v])
+
+# create devdis datasets. hardcode it as the first n_val_ood, n_val_tokens_ood value
+devdis_names = ['DEVDIS000', 'DEVDIS001', 'DEVDIS010', 'DEVDIS011', 
+                'DEVDIS100', 'DEVDIS101', 'DEVDIS110', 'DEVDIS111']
+print("generating devdis datasets...")
+for devdis in devdis_names:
+    devdis_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(devdis, pos_string, aug_string, 
+        f'valsize_{n_val}')
+
+    if not os.path.exists(devdis_dir):
+        print(f"generating {devdis_dir}")
+        call_create_devdis(patch_size, n_val_ood[0], k, unaligned, multiplier, 
+                            val_dir, rotation, scaling, devdis,
+                            n_val_tokens=n_val_tokens_ood[0])
     
+    val_dataset = SameDifferentDataset(devdis_dir, transform=transform, rotation=rotation, scaling=scaling)
+    val_dataloader = DataLoader(val_dataset, batch_size=n_val // 4, shuffle=True)
+    
+    val_datasets.append(val_dataset)
+    val_dataloaders.append(val_dataloader)
+    val_labels.append(devdis)
+
+
 # Optimizer and scheduler
 if optim == 'adamw':
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)

@@ -18,13 +18,10 @@ parser.add_argument('--feature_extract', action='store_true', default=False,
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Use ImageNet pretrained models. If false, models are trained from scratch.')
 parser.add_argument('--num_gpus', type=int, default=1, required=False)
-<<<<<<< HEAD
 parser.add_argument('--rotation', action='store_true', default=False)
 parser.add_argument('--scaling', action='store_true', default=False)
-=======
 parser.add_argument('--mode', help='Whether to sweep over "datasets" or over "tokens."', 
                     default='datasets')
->>>>>>> aa578ef9c6427931fa217aeb337c2b1689b375bf
 
 args = parser.parse_args()
 

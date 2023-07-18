@@ -3,7 +3,8 @@ from transformers import ViTImageProcessor, ViTForImageClassification, ViTConfig
 #CLIPProcessor, CLIPModel, CLIPConfig
 import clip
 from torch.utils.data import DataLoader
-from data import SameDifferentDataset, call_create_stimuli, call_create_devdis
+from data import SameDifferentDataset, call_create_stimuli
+from dissociate import call_create_devdis
 import torch.nn as nn
 import torch
 import argparse
@@ -600,7 +601,7 @@ for devdis in devdis_names:
     if not os.path.exists(devdis_dir):
         print(f"generating {devdis_dir}")
         call_create_devdis(patch_size, n_val_ood[0], k, unaligned, multiplier, 
-                            val_dir, rotation, scaling, devdis,
+                            devdis_dir, rotation, scaling, devdis,
                             n_val_tokens=n_val_tokens_ood[0])
     
     val_dataset = SameDifferentDataset(devdis_dir, transform=transform, rotation=rotation, scaling=scaling)

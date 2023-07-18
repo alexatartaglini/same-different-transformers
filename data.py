@@ -97,7 +97,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
     :param multiplier: Scalar by which to multiply object size. (object size = patch_size
                        * multiplier)
     :param im_size: Size of the base image.
-    :param stim_type: Name of source dataset used to construct data.
+    :param stim_type: Name of source dataset used to construct data (e.g. OBJECTSALL, DEVELOPMENTAL, DEVDIS001). 
     :param patch_dir: Relevant location to store the created stimuli.
     :param condition: train, test, or val.
     '''
@@ -295,7 +295,7 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
         if '-' in stim_type:
             im = Image.open('stimuli/source/{0}/{1}'.format(obj_dict[o], o)).convert('RGB')
         else:
-            im = Image.open('stimuli/source/{0}/{1}'.format(stim_type, o)).convert('RGB')
+            im = Image.open('stimuli/source/{0}/{1}'.format("DEVELOPMENTAL" if "DEVDIS" in stim_type else stim_type, o)).convert('RGB')
         im = im.resize((obj_size, obj_size))
         object_ims_all[o] = im
 
@@ -471,43 +471,6 @@ def call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multip
     create_stimuli(k, n_test, object_files_test, unaligned, patch_size, multiplier,
                    im_size, path_elements[1], patch_dir, 'test', rotation=rotation, scaling=scaling)
 
-# TODO expand logic to k>2
-def call_create_devdis(patch_size, n_val, k, unaligned, multiplier, patch_dir, 
-                       rotation, scaling, devdis, im_size=224, n_val_tokens=300):
-
-    assert im_size % patch_size == 0
-    
-    path_elements = patch_dir.split('/')
-    
-    stub = 'stimuli'
-    for p in path_elements[1:]:
-        try:
-            os.mkdir('{0}/{1}'.format(stub, p))
-        except FileExistsError:
-            pass
-        stub = '{0}/{1}'.format(stub, p)
-
-    # we only need one same directory underneath the name
-    # e.g. DEVDIS001/unaligned/RS/valsize_6400/same/img.png
-    try:
-        os.mkdir('{0}/same'.format(patch_dir))
-    except FileExistsError:
-        pass
-
-    # Collect object image paths. Because this is devdis, we're using the 
-    # DEVELOPMENTAL source stimuli (and making some tint modifications online). 
-    object_files = [f for f in os.listdir(f'stimuli/source/DEVELOPMENTAL') 
-                    if os.path.isfile(os.path.join(f'stimuli/source/DEVELOPMENTAL', f)) 
-                    and f != '.DS_Store']
-
-    # There are 1792 DEVELOPMENTAL objects to work with. Use 300 unique tokens
-    # by default to match other experiments with this dataset size.
-    n_unique = len(object_files)
-    object_files_val = random.sample(object_files, k=n_val_tokens)
-
-    # TODO edit logic within this function on line 175 and __ to be able to change logic based on the stim_type
-    create_stimuli(k, n_val, object_files_val, unaligned, patch_size, multiplier,
-                im_size, devdis, patch_dir, None, rotation=rotation, scaling=scaling)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate data.')

@@ -4,6 +4,7 @@ from transformers import ViTImageProcessor, ViTForImageClassification, ViTConfig
 import clip
 from torch.utils.data import DataLoader
 from data import SameDifferentDataset, call_create_stimuli
+from dissociate import call_create_devdis
 import torch.nn as nn
 import torch
 import argparse
@@ -210,6 +211,7 @@ parser.add_argument('--lr', type=float, default=2e-6, help='Learning rate.')
 parser.add_argument('--lr_scheduler', default='reduce_on_plateau', help='LR scheduler.')
 parser.add_argument('--num_epochs', type=int, default=30, help='Number of training epochs.')
 parser.add_argument('--batch_size', type=int, default=64, help='Train/validation batch size.')
+parser.add_argument('--seed', type=int, default=-1, help='If not given, picks random seed.')
 
 # Stimulus arguments
 parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
@@ -247,6 +249,10 @@ parser.add_argument('--n_test_ood', nargs='+', required=False, default=[],
                     help='Size of OOD test sets. Default: equal to n_train_ood.')
 parser.add_argument('--n_test_tokens_ood', nargs='+', required=False, default=[],
                     help='Number of unique tokens in OOD test sets. Default: n_test_tokens.')
+parser.add_argument('--n_devdis', type=int, default=-1,
+                    help='Total # developmental dissociation stimuli. Default: equal to n_train.')
+parser.add_argument('--n_devdis_tokens', type=int, default=-1,
+                    help='# unique developmental dissociation tokens. Default: equal to n_val_tokens.')
 
 # Paremeters for logging, storing models, etc.
 parser.add_argument('--save_model_freq', help='Number of times to save model checkpoints \
@@ -283,6 +289,7 @@ lr = args.lr
 lr_scheduler = args.lr_scheduler
 num_epochs = args.num_epochs
 batch_size = args.batch_size
+seed = args.seed
 
 k = args.k
 rotation = args.rotation
@@ -302,10 +309,18 @@ n_val_ood = args.n_val_ood
 n_val_tokens_ood = args.n_val_tokens_ood
 n_test_ood = args.n_test_ood
 n_test_tokens_ood = args.n_test_tokens_ood
+n_devdis = args.n_devdis
+n_devdis_tokens = args.n_devdis_tokens
 
 # if n_train_tokens > n_train:
 #     print('n_train_tokens > n_train. train.py exiting...')
 #     sys.exit(0)
+
+# make deterministic if given a seed 
+if seed != -1:
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
 
 # Default behavior for n_val, n_test
 if val_datasets_names == 'all':
@@ -320,6 +335,8 @@ if n_val == -1:
     n_val = n_train
 if n_test == -1:
     n_test = n_train
+if n_devdis == -1:
+    n_devdis = n_train
     
 if len(n_train_ood) == 0:
     n_train_ood = [n_train for _ in range(len(val_datasets_names))]
@@ -515,6 +532,9 @@ else:
             n_unique_val = n_val_tokens
             n_unique_test = n_test_tokens
             
+if n_devdis_tokens == -1:
+    n_devdis_tokens = n_val_tokens
+
 if len(n_train_tokens_ood) == 0:
     n_train_tokens_ood = [n_unique_train for _ in range(len(val_datasets_names))]
 elif len(n_train_tokens_ood) == 1:
@@ -556,6 +576,7 @@ train_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(train_dataset_string, pos_string, a
                                              f'trainsize_{n_train}_{n_unique_train}-{n_unique_val}-{n_unique_test}')
 
 if not os.path.exists(train_dir):
+    print(f"generating {train_dir}")
     call_create_stimuli(patch_size, n_train, n_val, n_test, k, unaligned, multiplier, 
                         train_dir, rotation, scaling, n_train_tokens=n_train_tokens, 
                         n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)
@@ -576,6 +597,7 @@ for v in range(len(val_datasets_names)):
                                                f'trainsize_{n_train_ood[v]}_{n_train_tokens_ood[v]}-{n_val_tokens_ood[v]}-{n_test_tokens_ood[v]}')
     
     if not os.path.exists(val_dir):
+        print(f"generating {val_dir}")
         call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
                             val_dir, rotation, scaling, n_train_tokens=n_train_tokens_ood[v], n_val_tokens=n_val_tokens_ood[v],
                             n_test_tokens=n_test_tokens_ood[v])
@@ -586,7 +608,29 @@ for v in range(len(val_datasets_names)):
     val_datasets.append(val_dataset)
     val_dataloaders.append(val_dataloader)
     val_labels.append(val_datasets_names[v])
+
+# create devdis datasets. hardcode it as the first n_val_ood, n_val_tokens_ood value
+devdis_names = ['DEVDIS000', 'DEVDIS001', 'DEVDIS010', 'DEVDIS011', 
+                'DEVDIS100', 'DEVDIS101', 'DEVDIS110', 'DEVDIS111']
+print("generating devdis datasets...")
+for devdis in devdis_names:
+    devdis_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(devdis, pos_string, aug_string, 
+        f'valsize_{n_val}')
+
+    if not os.path.exists(devdis_dir):
+        print(f"generating {devdis_dir}")
+        call_create_devdis(patch_size, n_devdis, k, unaligned, multiplier, 
+                            devdis_dir, rotation, scaling, devdis,
+                            n_val_tokens=n_devdis_tokens)
     
+    val_dataset = SameDifferentDataset(devdis_dir, transform=transform, rotation=rotation, scaling=scaling)
+    val_dataloader = DataLoader(val_dataset, batch_size=n_val // 4, shuffle=True)
+    
+    val_datasets.append(val_dataset)
+    val_dataloaders.append(val_dataloader)
+    val_labels.append(devdis)
+
+
 # Optimizer and scheduler
 if optim == 'adamw':
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)

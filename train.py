@@ -211,6 +211,7 @@ parser.add_argument('--lr', type=float, default=2e-6, help='Learning rate.')
 parser.add_argument('--lr_scheduler', default='reduce_on_plateau', help='LR scheduler.')
 parser.add_argument('--num_epochs', type=int, default=30, help='Number of training epochs.')
 parser.add_argument('--batch_size', type=int, default=64, help='Train/validation batch size.')
+parser.add_argument('--seed', type=int, default=-1, help='If not given, picks random seed.')
 
 # Stimulus arguments
 parser.add_argument('--k', type=int, default=2, help='Number of objects per scene.')
@@ -288,6 +289,7 @@ lr = args.lr
 lr_scheduler = args.lr_scheduler
 num_epochs = args.num_epochs
 batch_size = args.batch_size
+seed = args.seed
 
 k = args.k
 rotation = args.rotation
@@ -313,6 +315,12 @@ n_devdis_tokens = args.n_devdis_tokens
 # if n_train_tokens > n_train:
 #     print('n_train_tokens > n_train. train.py exiting...')
 #     sys.exit(0)
+
+# make deterministic if given a seed 
+if seed != -1:
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
 
 # Default behavior for n_val, n_test
 if val_datasets_names == 'all':

@@ -248,6 +248,10 @@ parser.add_argument('--n_test_ood', nargs='+', required=False, default=[],
                     help='Size of OOD test sets. Default: equal to n_train_ood.')
 parser.add_argument('--n_test_tokens_ood', nargs='+', required=False, default=[],
                     help='Number of unique tokens in OOD test sets. Default: n_test_tokens.')
+parser.add_argument('--n_devdis', type=int, default=-1,
+                    help='Total # developmental dissociation stimuli. Default: equal to n_train.')
+parser.add_argument('--n_devdis_tokens', type=int, default=-1,
+                    help='# unique developmental dissociation tokens. Default: equal to n_val_tokens.')
 
 # Paremeters for logging, storing models, etc.
 parser.add_argument('--save_model_freq', help='Number of times to save model checkpoints \
@@ -303,6 +307,8 @@ n_val_ood = args.n_val_ood
 n_val_tokens_ood = args.n_val_tokens_ood
 n_test_ood = args.n_test_ood
 n_test_tokens_ood = args.n_test_tokens_ood
+n_devdis = args.n_devdis
+n_devdis_tokens = args.n_devdis_tokens
 
 # if n_train_tokens > n_train:
 #     print('n_train_tokens > n_train. train.py exiting...')
@@ -321,6 +327,8 @@ if n_val == -1:
     n_val = n_train
 if n_test == -1:
     n_test = n_train
+if n_devdis == -1:
+    n_devdis = n_train
     
 if len(n_train_ood) == 0:
     n_train_ood = [n_train for _ in range(len(val_datasets_names))]
@@ -516,6 +524,9 @@ else:
             n_unique_val = n_val_tokens
             n_unique_test = n_test_tokens
             
+if n_devdis_tokens == -1:
+    n_devdis_tokens = n_val_tokens
+
 if len(n_train_tokens_ood) == 0:
     n_train_tokens_ood = [n_unique_train for _ in range(len(val_datasets_names))]
 elif len(n_train_tokens_ood) == 1:
@@ -600,9 +611,9 @@ for devdis in devdis_names:
 
     if not os.path.exists(devdis_dir):
         print(f"generating {devdis_dir}")
-        call_create_devdis(patch_size, n_val_ood[0], k, unaligned, multiplier, 
+        call_create_devdis(patch_size, n_devdis, k, unaligned, multiplier, 
                             devdis_dir, rotation, scaling, devdis,
-                            n_val_tokens=n_val_tokens_ood[0])
+                            n_val_tokens=n_devdis_tokens)
     
     val_dataset = SameDifferentDataset(devdis_dir, transform=transform, rotation=rotation, scaling=scaling)
     val_dataloader = DataLoader(val_dataset, batch_size=n_val // 4, shuffle=True)

@@ -124,7 +124,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                         same_scores = outputs[error_idx, 0]
                         diff_scores = outputs[error_idx, 1]
                         same_acc = len(labels[labels + preds == 2]) / len(labels[labels == 1])
-                        diff_acc = len(labels[labels + preds == 0]) / len(labels[labels == 0])
+                        diff_acc = len(labels[labels + preds == 0]) / len(labels[labels == 0]) if len(labels[labels==0]) > 0 else 0
                         for j in range(len(same_scores)):
                             test_table.add_data(epoch, error_paths[j], wandb.Image(error_ims[j, :, :, :]),
                                                 val_label, error_preds[j], error_truths[j], same_scores[j], 

@@ -336,7 +336,7 @@ if n_val == -1:
 if n_test == -1:
     n_test = n_train
 if n_devdis == -1:
-    n_devdis = n_train
+    n_devdis = n_val
     
 if len(n_train_ood) == 0:
     n_train_ood = [n_train for _ in range(len(val_datasets_names))]

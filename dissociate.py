@@ -208,9 +208,7 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
         examples_generated += 1
         pair_counts[idx] += 1
 
-    # assert sum(pair_counts) == n
-    if sum(pair_counts) != n:
-        print("assertion failed:", sum(pair_counts), n)
+    assert sum(pair_counts) == n
 
     # Save the stimuli generated above
     object_ims_all = {}

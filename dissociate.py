@@ -46,7 +46,12 @@ def tint(img, color, factor=0.4):
     temp[:r, :c] = operation
     operation = temp
     operation[:3, 3] = factor * color
-    return img.convert('RGB', tuple(operation[:3,:].flatten()))
+    tinted = img.convert('RGB', tuple(operation[:3,:].flatten()))
+    # turn tinted background back to white
+    arr = np.array(tinted)
+    mask = (arr == arr[0][0]).all(axis=-1)
+    arr[mask] = (255,255,255)
+    return Image.fromarray(arr).convert('RGB')
 
 def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, devdis,
                    out_dir, rotation=False, scaling=False, palette=kelly):
@@ -234,6 +239,7 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
             object_ims = [object_ims_all[obj1].copy(), object_ims_all[obj2].copy()]
 
             if rotation:
+<<<<<<< HEAD
                 rotation_deg = random.randint(0, 359)
                 
                 for o in range(len(object_ims)):
@@ -259,6 +265,34 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
                     scaled_obj_im = object_ims[o].resize((scaled_size, scaled_size))
                     scale_base.paste(scaled_obj_im, ((obj_size - scaled_size) // 2, (obj_size - scaled_size) // 2))
                     object_ims[o] = scale_base
+=======
+                    rotation_deg = random.randint(0, 359)
+                    
+                    for o in range(len(object_ims)):
+                        rotated_obj_o = object_ims[o].rotate(rotation_deg, expand=1, fillcolor=(255, 255, 255), resample=Image.BICUBIC)
+                        
+                        if rotated_obj_o.size != (obj_size, obj_size):
+                            scale_base_o = Image.new('RGB', (max(rotated_obj_o.size), max(rotated_obj_o.size)), (255, 255, 255))
+                            scale_base_o.paste(rotated_obj_o, ((max(rotated_obj_o.size) - rotated_obj_o.size[0]) // 2, 
+                                                              (max(rotated_obj_o.size) - rotated_obj_o.size[1]) // 2))
+                            rotated_obj_o = scale_base_o
+                            
+                        scale_base_o = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
+                        scale_base_o.paste(rotated_obj_o.resize((obj_size, obj_size)))  
+                        
+                        object_ims[o] = scale_base_o
+                    
+            if scaling:
+                    #scaled_obj_idx = random.choice([0, 1])
+                    scale_factor = random.uniform(0.45, 0.9)
+                    scaled_size = floor(obj_size * scale_factor)
+                    
+                    for o in range(len(object_ims)):
+                        scale_base = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
+                        scaled_obj_im = object_ims[o].resize((scaled_size, scaled_size))
+                        scale_base.paste(scaled_obj_im, ((obj_size - scaled_size) // 2, (obj_size - scaled_size) // 2))
+                        object_ims[o] = scale_base
+>>>>>>> ca524c34bf35f3bad058bb0746e8e927b21997bf
                 
                     
             for c in range(len(p)):

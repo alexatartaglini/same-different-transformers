@@ -239,7 +239,6 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
             object_ims = [object_ims_all[obj1].copy(), object_ims_all[obj2].copy()]
 
             if rotation:
-<<<<<<< HEAD
                 rotation_deg = random.randint(0, 359)
                 
                 for o in range(len(object_ims)):
@@ -265,7 +264,6 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
                     scaled_obj_im = object_ims[o].resize((scaled_size, scaled_size))
                     scale_base.paste(scaled_obj_im, ((obj_size - scaled_size) // 2, (obj_size - scaled_size) // 2))
                     object_ims[o] = scale_base
-=======
                     rotation_deg = random.randint(0, 359)
                     
                     for o in range(len(object_ims)):
@@ -292,7 +290,6 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
                         scaled_obj_im = object_ims[o].resize((scaled_size, scaled_size))
                         scale_base.paste(scaled_obj_im, ((obj_size - scaled_size) // 2, (obj_size - scaled_size) // 2))
                         object_ims[o] = scale_base
->>>>>>> ca524c34bf35f3bad058bb0746e8e927b21997bf
                 
                     
             for c in range(len(p)):

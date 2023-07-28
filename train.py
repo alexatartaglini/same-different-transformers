@@ -253,6 +253,8 @@ parser.add_argument('--n_devdis', type=int, default=-1,
                     help='Total # developmental dissociation stimuli. Default: equal to n_train.')
 parser.add_argument('--n_devdis_tokens', type=int, default=-1,
                     help='# unique developmental dissociation tokens. Default: equal to n_val_tokens.')
+parser.add_argument('--generate_different_devdis', action='store_true', help='Generate different pairs \
+                    for devdis sets.')
 
 # Paremeters for logging, storing models, etc.
 parser.add_argument('--save_model_freq', help='Number of times to save model checkpoints \
@@ -311,6 +313,7 @@ n_test_ood = args.n_test_ood
 n_test_tokens_ood = args.n_test_tokens_ood
 n_devdis = args.n_devdis
 n_devdis_tokens = args.n_devdis_tokens
+generate_different_devdis = args.generate_different_devdis
 
 # if n_train_tokens > n_train:
 #     print('n_train_tokens > n_train. train.py exiting...')
@@ -621,7 +624,7 @@ for devdis in devdis_names:
         print(f"generating {devdis_dir}")
         call_create_devdis(patch_size, n_devdis, k, unaligned, multiplier, 
                             devdis_dir, rotation, scaling, devdis,
-                            n_val_tokens=n_devdis_tokens)
+                            n_val_tokens=n_devdis_tokens, generate_different=generate_different_devdis)
     
     val_dataset = SameDifferentDataset(devdis_dir, transform=transform, rotation=rotation, scaling=scaling)
     val_dataloader = DataLoader(val_dataset, batch_size=n_val // 4, shuffle=True)

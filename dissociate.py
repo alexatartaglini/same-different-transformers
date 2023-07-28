@@ -54,7 +54,8 @@ def tint(img, color, factor=0.4):
     return Image.fromarray(arr).convert('RGB')
 
 def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, devdis,
-                   out_dir, rotation=False, scaling=False, palette=kelly):
+                   out_dir, rotation=False, scaling=False, palette=kelly,
+                   generate_different=False):
     '''
     TODO edit comment 
     Creates n same_different stimuli, all labelled "same." If n > the number of unique 
@@ -79,6 +80,7 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
     :param im_size: Size of the base image.
     :param devdis: Name of source dataset used to construct data (e.g. OBJECTSALL, DEVELOPMENTAL, DEVDIS001). 
     :param out_dir: Relevant location to store the created stimuli.
+    :param generate_different: generate "different" stimuli as well.
     '''
 
     obj_size = patch_size * multiplier
@@ -109,10 +111,30 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
 
     # keep pairs that fulfill our s/d definition 
     if combination == '111': # all same 
-        pairs = {tuple([o] * k): [] for o in objects}
+        if not generate_different:
+            same_pairs = {tuple([o] * k): [] for o in objects}
+        else:
+            all_different_pairs = list(itertools.combinations(objects, k))
+            relevant_same_pairs = [tuple([o] * k) for o in objects]
+            relevant_different_pairs = []
+            
+            for pair in all_different_pairs:
+                assert '-' in pair[0] and '-' in pair[1]
+                shape1, texture1, color1 = pair[0].split('-')
+                shape2, texture2, color2 = pair[1].split('-')
+                
+                if (color1 != color2 and texture1 != texture2 and shape1 != shape2):
+                    relevant_different_pairs.append(pair)
+               
+            n_per_class = n // 2
+            same_pairs = {o: [] for o in random.sample(relevant_same_pairs, k=min(n_per_class, len(relevant_same_pairs)))}
+            different_pairs = {o: [] for o in random.sample(relevant_different_pairs, k=min(n_per_class, len(relevant_different_pairs)))}
+            
     else: # at least one different
         all_different_pairs = list(itertools.combinations(objects, k))
+        relevant_same_pairs = []
         relevant_different_pairs = []
+        
 
         for pair in all_different_pairs:
             assert '-' in pair[0] and '-' in pair[1]
@@ -121,35 +143,45 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
                         
             if combination == '000':
                 if (color1 != color2 and texture1 != texture2 and shape1 != shape2):
-                    relevant_different_pairs.append(pair)
+                    relevant_same_pairs.append(pair)
             elif combination == '001':
                 if (color1 != color2 and texture1 != texture2 and shape1 == shape2):
-                    relevant_different_pairs.append(pair)
+                    relevant_same_pairs.append(pair)
             elif combination == '010':
                 if (color1 != color2 and texture1 == texture2 and shape1 != shape2):
-                    relevant_different_pairs.append(pair)
+                    relevant_same_pairs.append(pair)
             elif combination == '011':
                 if (color1 != color2 and texture1 == texture2 and shape1 == shape2):
-                    relevant_different_pairs.append(pair)
+                    relevant_same_pairs.append(pair)
             elif combination == '100':
                 if (color1 == color2 and texture1 != texture2 and shape1 != shape2):
-                    relevant_different_pairs.append(pair)
+                    relevant_same_pairs.append(pair)
             elif combination == '101':
                 if (color1 == color2 and texture1 != texture2 and shape1 == shape2):
-                    relevant_different_pairs.append(pair)
+                    relevant_same_pairs.append(pair)
             elif combination == '110':
                 if (color1 == color2 and texture1 == texture2 and shape1 != shape2):
-                    relevant_different_pairs.append(pair)
+                    relevant_same_pairs.append(pair)
+                    
+            if (color1 != color2 and texture1 != texture2 and shape1 != shape2):
+                relevant_different_pairs.append(pair)
         
-        if len(relevant_different_pairs) < len(objects):
-            print(relevant_different_pairs)
-        pairs = {o: [] for o in random.sample(relevant_different_pairs, k=len(objects))}
+        if len(relevant_same_pairs) < len(objects):
+            print(relevant_same_pairs)
+            
+        if not generate_different:
+            same_pairs = {o: [] for o in random.sample(relevant_same_pairs, k=len(objects))}
+        else:
+            n_per_class = n // 2
+            
+            same_pairs = {o: [] for o in random.sample(relevant_same_pairs, k=min(n_per_class, len(relevant_same_pairs)))}
+            different_pairs = {o: [] for o in random.sample(relevant_different_pairs, k=min(n_per_class, len(relevant_different_pairs)))}
         
     # Assign at least one position to each pair
-    for pair in pairs.keys():
+    for pair in same_pairs.keys():
         if not unaligned:
             c = random.sample(possible_coords, k=k)
-            pairs[pair].append(c)
+            same_pairs[pair].append(c)
         else:  # Code needs to be altered for k > 2
             c1 = tuple(random.sample(list(coords), k=2))
             c2 = tuple(random.sample(list(coords), k=2))
@@ -159,24 +191,46 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
                     and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
                 c2 = tuple(random.sample(list(coords), k=2))
 
-            pairs[pair].append([c1, c2])
+            same_pairs[pair].append([c1, c2])
+            
+    if generate_different:
+        for pair in different_pairs.keys():
+            if not unaligned:
+                c = random.sample(possible_coords, k=k)
+                different_pairs[pair].append(c)
+            else:  # Code needs to be altered for k > 2
+                c1 = tuple(random.sample(list(coords), k=2))
+                c2 = tuple(random.sample(list(coords), k=2))
+
+                # Ensure there is no overlap
+                while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                        and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                    c2 = tuple(random.sample(list(coords), k=2))
+
+                different_pairs[pair].append([c1, c2])
 
     # Generate more unique positions for pairs until desired number is achieved
-    pair_keys = list(pairs.keys())
-    examples_generated = len(pair_keys)
-    pair_counts = [1] * examples_generated
+    if generate_different:
+        n_same = n // 2
+        n_different = n // 2
+    else:
+        n_same = n
+    
+    same_pair_keys = list(same_pairs.keys())
+    same_examples_generated = len(same_pair_keys)
+    same_pair_counts = [1] * same_examples_generated
 
-    while examples_generated < n:
-        key = random.choice(pair_keys)
+    while same_examples_generated < n_same:
+        key = random.choice(same_pair_keys)
 
         # check whether this key has already exhausted all placements
         if not unaligned: 
-            while len(pairs[key]) == len(possible_coords):
-                key = random.choice(pair_keys)
+            while len(same_pairs[key]) == len(possible_coords):
+                key = random.choice(same_pair_keys)
 
-        idx = pair_keys.index(key)
+        idx = same_pair_keys.index(key)
 
-        existing_positions = [set(c) for c in pairs[key]]
+        existing_positions = [set(c) for c in same_pairs[key]]
 
         if not unaligned:
             c = random.sample(possible_coords, k=k)
@@ -184,7 +238,7 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
             while set(c) in existing_positions:  # Ensure unique position
                 c = random.sample(possible_coords, k=k)
 
-            pairs[key].append(c)
+            same_pairs[key].append(c)
         else:  # Code needs to be altered for k > 2
             c1 = tuple(random.sample(list(coords), k=2))
             c2 = tuple(random.sample(list(coords), k=2))
@@ -203,12 +257,62 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
                         and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
                     c2 = tuple(random.sample(list(coords), k=2))
 
-            pairs[key].append([c1, c2])
+            same_pairs[key].append([c1, c2])
 
-        examples_generated += 1
-        pair_counts[idx] += 1
+        same_examples_generated += 1
+        same_pair_counts[idx] += 1
 
-    assert sum(pair_counts) == n
+    assert sum(same_pair_counts) == n_same
+    
+    if generate_different:
+        different_pair_keys = list(different_pairs.keys())
+        different_examples_generated = len(different_pair_keys)
+        different_pair_counts = [1] * different_examples_generated
+
+        while different_examples_generated < n_different:
+            key = random.choice(different_pair_keys)
+
+            # check whether this key has already exhausted all placements
+            if not unaligned: 
+                while len(different_pairs[key]) == len(possible_coords):
+                    key = random.choice(different_pair_keys)
+
+            idx = different_pair_keys.index(key)
+
+            existing_positions = [set(c) for c in different_pairs[key]]
+
+            if not unaligned:
+                c = random.sample(possible_coords, k=k)
+
+                while set(c) in existing_positions:  # Ensure unique position
+                    c = random.sample(possible_coords, k=k)
+
+                different_pairs[key].append(c)
+            else:  # Code needs to be altered for k > 2
+                c1 = tuple(random.sample(list(coords), k=2))
+                c2 = tuple(random.sample(list(coords), k=2))
+
+                # Ensure there is no overlap
+                while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                        and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                    c2 = tuple(random.sample(list(coords), k=2))
+
+                while set([c1, c2]) in existing_positions:  # Ensure unique position
+                    c1 = tuple(random.sample(list(coords), k=2))
+                    c2 = tuple(random.sample(list(coords), k=2))
+
+                    # Ensure there is no overlap
+                    while (c2[0] >= (c1[0] - obj_size) and c2[0] <= (c1[0] + obj_size)) \
+                            and (c2[1] >= (c1[1] - obj_size) and c2[1] <= (c1[1] + obj_size)):
+                        c2 = tuple(random.sample(list(coords), k=2))
+
+                different_pairs[key].append([c1, c2])
+
+            different_examples_generated += 1
+            different_pair_counts[idx] += 1
+            
+        assert sum(different_pair_counts) == n_different
+        assert sum(different_pair_counts) + sum(same_pair_counts) == n
 
     # Save the stimuli generated above
     object_ims_all = {}
@@ -224,46 +328,28 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
         base.paste(im, mask=shape_mask)
         object_ims_all[o] = base
 
-    sd_class = "same"
-    setting = '{0}/{1}'.format(out_dir, sd_class)
+    sd_classes = ["same"]
+    item_dicts = [same_pairs]
+    
+    if generate_different:
+        sd_classes.append("different")
+        item_dicts.append(different_pairs)
+    
+    for sd_class, item_dict in zip(sd_classes, item_dicts):
+        setting = '{0}/{1}'.format(out_dir, sd_class)
 
-    for key in pairs.keys():
-        positions = pairs[key]
-
-        for i, p in enumerate(positions):
-            base = Image.new('RGB', (im_size, im_size), (255, 255, 255))
-
-            # TODO: fix for k > 2
-            obj1 = key[0]
-            obj2 = key[1]
-            object_ims = [object_ims_all[obj1].copy(), object_ims_all[obj2].copy()]
-
-            if rotation:
-                rotation_deg = random.randint(0, 359)
-                
-                for o in range(len(object_ims)):
-                    rotated_obj_o = object_ims[o].rotate(rotation_deg, expand=1, fillcolor=(255, 255, 255), resample=Image.BICUBIC)
-                    
-                    if rotated_obj_o.size != (obj_size, obj_size):
-                        scale_base_o = Image.new('RGB', (max(rotated_obj_o.size), max(rotated_obj_o.size)), (255, 255, 255))
-                        scale_base_o.paste(rotated_obj_o, ((max(rotated_obj_o.size) - rotated_obj_o.size[0]) // 2, 
-                                                          (max(rotated_obj_o.size) - rotated_obj_o.size[1]) // 2))
-                        rotated_obj_o = scale_base_o
-                        
-                    scale_base_o = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
-                    scale_base_o.paste(rotated_obj_o.resize((obj_size, obj_size)))  
-                    
-                    object_ims[o] = scale_base_o
-                    
-            if scaling:
-                scale_factor = random.uniform(0.45, 0.9)
-                scaled_size = floor(obj_size * scale_factor)
-                
-                for o in range(len(object_ims)):
-                    scale_base = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
-                    scaled_obj_im = object_ims[o].resize((scaled_size, scaled_size))
-                    scale_base.paste(scaled_obj_im, ((obj_size - scaled_size) // 2, (obj_size - scaled_size) // 2))
-                    object_ims[o] = scale_base
+        for key in item_dict.keys():
+            positions = item_dict[key]
+    
+            for i, p in enumerate(positions):
+                base = Image.new('RGB', (im_size, im_size), (255, 255, 255))
+    
+                # TODO: fix for k > 2
+                obj1 = key[0]
+                obj2 = key[1]
+                object_ims = [object_ims_all[obj1].copy(), object_ims_all[obj2].copy()]
+    
+                if rotation:
                     rotation_deg = random.randint(0, 359)
                     
                     for o in range(len(object_ims)):
@@ -279,9 +365,9 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
                         scale_base_o.paste(rotated_obj_o.resize((obj_size, obj_size)))  
                         
                         object_ims[o] = scale_base_o
-                    
-            if scaling:
-                    #scaled_obj_idx = random.choice([0, 1])
+                  
+                '''
+                if scaling:
                     scale_factor = random.uniform(0.45, 0.9)
                     scaled_size = floor(obj_size * scale_factor)
                     
@@ -290,16 +376,44 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
                         scaled_obj_im = object_ims[o].resize((scaled_size, scaled_size))
                         scale_base.paste(scaled_obj_im, ((obj_size - scaled_size) // 2, (obj_size - scaled_size) // 2))
                         object_ims[o] = scale_base
-                
+                        rotation_deg = random.randint(0, 359)
+                        
+                        for o in range(len(object_ims)):
+                            rotated_obj_o = object_ims[o].rotate(rotation_deg, expand=1, fillcolor=(255, 255, 255), resample=Image.BICUBIC)
+                            
+                            if rotated_obj_o.size != (obj_size, obj_size):
+                                scale_base_o = Image.new('RGB', (max(rotated_obj_o.size), max(rotated_obj_o.size)), (255, 255, 255))
+                                scale_base_o.paste(rotated_obj_o, ((max(rotated_obj_o.size) - rotated_obj_o.size[0]) // 2, 
+                                                                  (max(rotated_obj_o.size) - rotated_obj_o.size[1]) // 2))
+                                rotated_obj_o = scale_base_o
+                                
+                            scale_base_o = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
+                            scale_base_o.paste(rotated_obj_o.resize((obj_size, obj_size)))  
+                            
+                            object_ims[o] = scale_base_o
+                '''
+                        
+                if scaling:
+                        #scaled_obj_idx = random.choice([0, 1])
+                        scale_factor = random.uniform(0.45, 0.9)
+                        scaled_size = floor(obj_size * scale_factor)
+                        
+                        for o in range(len(object_ims)):
+                            scale_base = Image.new('RGB', (obj_size, obj_size), (255, 255, 255))
+                            scaled_obj_im = object_ims[o].resize((scaled_size, scaled_size))
+                            scale_base.paste(scaled_obj_im, ((obj_size - scaled_size) // 2, (obj_size - scaled_size) // 2))
+                            object_ims[o] = scale_base
                     
-            for c in range(len(p)):
-                base.paste(object_ims[c], box=p[c])
-
-            base.save('{0}/{1}_{2}_{3}.png'.format(setting, obj1.split('.')[0], obj2.split('.')[0], i), quality=100)
+                        
+                for c in range(len(p)):
+                    base.paste(object_ims[c], box=p[c])
+    
+                base.save('{0}/{1}_{2}_{3}.png'.format(setting, obj1.split('.')[0], obj2.split('.')[0], i), quality=100)
 
 # TODO expand logic to k>2
 def call_create_devdis(patch_size, n_val, k, unaligned, multiplier, out_dir, 
-                       rotation, scaling, devdis, im_size=224, n_val_tokens=300):
+                       rotation, scaling, devdis, im_size=224, n_val_tokens=300,
+                       generate_different=False):
 
     assert im_size % patch_size == 0
     
@@ -319,6 +433,12 @@ def call_create_devdis(patch_size, n_val, k, unaligned, multiplier, out_dir,
         os.mkdir('{0}/same'.format(out_dir))
     except FileExistsError:
         pass
+    
+    if generate_different:
+        try:
+            os.mkdir('{0}/different'.format(out_dir))
+        except FileExistsError:
+            pass
 
     # Collect object image paths. Because this is devdis, we're using the 
     # DEVELOPMENTAL source stimuli (and making some tint modifications online). 
@@ -332,4 +452,5 @@ def call_create_devdis(patch_size, n_val, k, unaligned, multiplier, out_dir,
     object_files_val = random.sample(object_files, k=n_val_tokens)
 
     create_devdis(k, n_val, object_files_val, unaligned, patch_size, multiplier,
-                im_size, devdis, out_dir, rotation=rotation, scaling=scaling)
+                im_size, devdis, out_dir, rotation=rotation, scaling=scaling,
+                generate_different=generate_different)

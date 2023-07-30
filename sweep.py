@@ -45,7 +45,7 @@ else:
 # Define command structure + specify sweep name
 #commands = ['${env}', '${interpreter}', '${program}', '--unaligned', '--rotation', '--scaling']
 
-commands = ['${env}', '${interpreter}', '${program}', '--unaligned']
+commands = ['${env}', '${interpreter}', '${program}', '--unaligned', '--generate_different_devdis']
 if args.rotation:
     commands += ['--rotation']
 if args.scaling:

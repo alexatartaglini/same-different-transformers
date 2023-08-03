@@ -129,4 +129,4 @@ if args.model_type == 'resnet' or args.model_type == 'clip_rn':
     sweep_configuration['parameters']['cnn_size'] = {'values': [args.cnn_size]}
     
 sweep_id = wandb.sweep(sweep=sweep_configuration, project=args.wandb_proj, entity=args.wandb_entity)
-wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity)
+wandb.agent(sweep_id=sweep_id, project=args.wandb_proj, entity=args.wandb_entity, count=1)

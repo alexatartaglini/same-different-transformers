@@ -148,9 +148,6 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                         inputs = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
                         for fi in range(len(f)):
                             inputs[fi, :] = features[f[fi]].to(device)
-                            
-                    for fi in range(len(f)):
-                        print(inputs[fi, :].device)
 
                     outputs = model(inputs)
                     if model_type == 'vit':
@@ -161,12 +158,9 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     acc = accuracy_score(labels.to('cpu'), preds.to('cpu'))
                     
                     # Log error examples
-                    if epoch in log_preds_epochs:
+                    if epoch in log_preds_epochs and not args.feature_extract:
                         error_idx = (labels + preds == 1).cpu()
-                        if args.feature_extract:
-                            error_ims = inputs[error_idx, :]
-                        else:
-                            error_ims = inputs[error_idx, :, :, :]
+                        error_ims = inputs[error_idx, :, :, :]
                         error_paths = [name.split('/')[-1] for name in np.asarray(list(f), dtype=object)[error_idx]]
                         error_preds = [int_to_label[p.item()] for p in preds[error_idx]]
                         error_truths = [int_to_label[l.item()] for l in labels[error_idx]]

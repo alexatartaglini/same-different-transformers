@@ -56,7 +56,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 
             for fi in range(len(f)):
                 filename = f[fi]
-                features[filename] = out_features[fi, :, :, :]
+                features[filename] = out_features[fi, :]
 
         for i in range(len(val_dataloaders)):
             val_dataloader = val_dataloaders[i]
@@ -70,7 +70,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     
                 for fi in range(len(f)):
                     filename = f[fi]
-                    features[filename] = out_features[fi, :, :, :]
+                    features[filename] = out_features[fi, :]
     else:
         model = model['classifier']
 

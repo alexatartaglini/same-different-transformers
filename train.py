@@ -163,7 +163,10 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     # Log error examples
                     if epoch in log_preds_epochs:
                         error_idx = (labels + preds == 1).cpu()
-                        error_ims = inputs[error_idx, :, :, :]
+                        if args.feature_extract:
+                            error_ims = inputs[error_idx, :]
+                        else:
+                            error_ims = inputs[error_idx, :, :, :]
                         error_paths = [name.split('/')[-1] for name in np.asarray(list(f), dtype=object)[error_idx]]
                         error_preds = [int_to_label[p.item()] for p in preds[error_idx]]
                         error_truths = [int_to_label[l.item()] for l in labels[error_idx]]

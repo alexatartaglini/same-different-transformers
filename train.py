@@ -147,7 +147,10 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     if args.feature_extract:
                         inputs = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
                         for fi in range(len(f)):
-                            inputs[fi, :] = features[f[fi]]
+                            inputs[fi, :] = features[f[fi]].to(device)
+                            
+                    for fi in range(len(f)):
+                        print(inputs[fi, :].device)
 
                     outputs = model(inputs)
                     if model_type == 'vit':

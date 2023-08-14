@@ -730,9 +730,11 @@ exp_config = {
 
 # Initialize Weights & Biases project & table
 if wandb_entity:
-    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity, dir=args.wandb_run_dir)
+    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity, dir=args.wandb_run_dir,
+                     settings=wandb.Settings(start_method="fork"))
 else:
-    run = wandb.init(project=wandb_proj, config=exp_config, dir=args.wandb_run_dir)
+    run = wandb.init(project=wandb_proj, config=exp_config, dir=args.wandb_run_dir,
+                     settings=wandb.Settings(start_method="fork"))
 
 run_id = wandb.run.id
 run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}-{n_unique_val}-{n_unique_test}_{aug_string}_LR{lr}_{run_id}'

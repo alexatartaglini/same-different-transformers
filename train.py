@@ -38,6 +38,40 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
     log_preds_epochs = np.linspace(0, num_epochs, log_preds_freq, dtype=int)
 
     criterion = nn.CrossEntropyLoss()
+    
+    if args.feature_extract:
+        features = {}  # Keep track of features
+        backbone = model['backbone']
+        model = model['classifier']
+        print('getting features...')
+        
+        for bi, (d, f) in enumerate(data_loader):
+            if model_type == 'vit':
+                inputs = d['pixel_values'].squeeze(1).to(device)
+            else:
+                inputs = d['image'].to(device)
+                
+            out_features = backbone(inputs).to(device)
+                
+            for fi in range(len(f)):
+                filename = f[fi]
+                features[filename] = out_features[fi, :]
+
+        for i in range(len(val_dataloaders)):
+            val_dataloader = val_dataloaders[i]
+            for bi, (d, f) in enumerate(val_dataloader):
+                if model_type == 'vit':
+                    inputs = d['pixel_values'].squeeze(1).to(device)
+                else:
+                    inputs = d['image'].to(device)
+                    
+                out_features = backbone(inputs).to(device)
+                    
+                for fi in range(len(f)):
+                    filename = f[fi]
+                    features[filename] = out_features[fi, :]
+    else:
+        model = model['classifier']
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch + 1, num_epochs))
@@ -49,11 +83,15 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
 
         # Iterate over data.
         for bi, (d, f) in enumerate(data_loader):
-
             if model_type == 'vit':
                 inputs = d['pixel_values'].squeeze(1).to(device)
             else:
                 inputs = d['image'].to(device)
+                
+            if args.feature_extract:
+                inputs = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
+                for fi in range(len(f)):
+                    inputs[fi, :] = features[f[fi]]
                 
             labels = d['label'].to(device)
 
@@ -105,6 +143,11 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     else:
                         inputs = d['image'].to(device)
                     labels = d['label'].to(device)
+                    
+                    if args.feature_extract:
+                        inputs = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
+                        for fi in range(len(f)):
+                            inputs[fi, :] = features[f[fi]].to(device)
 
                     outputs = model(inputs)
                     if model_type == 'vit':
@@ -115,7 +158,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     acc = accuracy_score(labels.to('cpu'), preds.to('cpu'))
                     
                     # Log error examples
-                    if epoch in log_preds_epochs:
+                    if epoch in log_preds_epochs and not args.feature_extract:
                         error_idx = (labels + preds == 1).cpu()
                         error_ims = inputs[error_idx, :, :, :]
                         error_paths = [name.split('/')[-1] for name in np.asarray(list(f), dtype=object)[error_idx]]
@@ -481,6 +524,13 @@ elif 'clip' in model_type:
 
 model = model.to(device)  # Move model to GPU if possible
 
+if feature_extract:
+    backbone = nn.Sequential(*list(model.children())[:-1])
+    classifier = nn.Sequential(list(model.children())[-1])
+    model = {'backbone': backbone, 'classifier': classifier}
+else:
+    model = {'classifier': model}
+
 # Create paths
 model_string += pretrained_string  # Indicate if model is pretrained
 model_string += fe_string  # Add 'fe' if applicable
@@ -587,6 +637,10 @@ if not os.path.exists(train_dir):
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus)
 
+#features = {}  # Keep track of features
+#backbone = model['backbone']
+#model = model['classifier']
+
 val_dataset = SameDifferentDataset(train_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
 val_dataloader = DataLoader(val_dataset, batch_size=n_val // 4, shuffle=True)
     
@@ -633,14 +687,13 @@ for devdis in devdis_names:
     val_dataloaders.append(val_dataloader)
     val_labels.append(devdis)
 
-
 # Optimizer and scheduler
 if optim == 'adamw':
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model['classifier'].parameters(), lr=lr)
 elif optim == 'adam':
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model['classifier'].parameters(), lr=lr)
 elif optim == 'sgd':
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+    optimizer = torch.optim.SGD(model['classifier'].parameters(), lr=lr)
 
 if lr_scheduler == 'reduce_on_plateau':
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=num_epochs//5)
@@ -676,9 +729,11 @@ exp_config = {
 
 # Initialize Weights & Biases project & table
 if wandb_entity:
-    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity, dir=args.wandb_run_dir)
+    run = wandb.init(project=wandb_proj, config=exp_config, entity=wandb_entity, dir=args.wandb_run_dir,
+                     settings=wandb.Settings(start_method="fork"))
 else:
-    run = wandb.init(project=wandb_proj, config=exp_config, dir=args.wandb_run_dir)
+    run = wandb.init(project=wandb_proj, config=exp_config, dir=args.wandb_run_dir,
+                     settings=wandb.Settings(start_method="fork"))
 
 run_id = wandb.run.id
 run.name = f'{model_string}_{train_dataset_string}{n_train}-{n_unique_train}-{n_unique_val}-{n_unique_test}_{aug_string}_LR{lr}_{run_id}'

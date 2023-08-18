@@ -278,6 +278,8 @@ parser.add_argument('--n_test_tokens', type=int, default=-1, help='Number of uni
                     in the test dataset. If -1, then number tokens = (total - n_train_tokens) // 2.')
 parser.add_argument('--n_val', type=int, default=-1,
                     help='Total # validation stimuli. Default: equal to n_train.')
+parser.add_argument('--n_devdis', type=int, default=-1,
+                    help='Total # devdis stimuli. Default: equal to n_train.')
 parser.add_argument('--n_test', type=int, default=-1,
                     help='Total # test stimuli. Default: equal to n_train.')
 parser.add_argument('--n_train_ood', nargs='+', required=False, default=[],
@@ -672,7 +674,7 @@ devdis_names = ['DEVDIS000', 'DEVDIS001', 'DEVDIS010', 'DEVDIS011',
 print("generating devdis datasets...")
 for devdis in devdis_names:
     devdis_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(devdis, pos_string, aug_string, 
-        f'valsize_{n_val}')
+        f'valsize_{n_devdis}')
 
     if not os.path.exists(devdis_dir):
         print(f"generating {devdis_dir}")

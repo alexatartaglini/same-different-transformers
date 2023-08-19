@@ -170,7 +170,7 @@ def create_devdis(k, n, objects, unaligned, patch_size, multiplier, im_size, dev
             print(relevant_same_pairs)
             
         if not generate_different:
-            same_pairs = {o: [] for o in random.sample(relevant_same_pairs, k=len(objects))}
+            same_pairs = {o: [] for o in random.sample(relevant_same_pairs, k=len(relevant_same_pairs))} # len(objects)
         else:
             n_per_class = n // 2
             

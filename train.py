@@ -659,6 +659,7 @@ for v in range(len(val_datasets_names)):
                             val_dir, rotation, scaling, n_train_tokens=n_train_tokens_ood[v], n_val_tokens=n_val_tokens_ood[v],
                             n_test_tokens=n_test_tokens_ood[v])
     
+    print(f"loading {val_dir}")
     val_dataset = SameDifferentDataset(val_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
     val_dataloader = DataLoader(val_dataset, batch_size=n_val_ood[v] // 4, shuffle=True)
     
@@ -680,6 +681,7 @@ for devdis in devdis_names:
                             devdis_dir, rotation, scaling, devdis,
                             n_val_tokens=n_devdis_tokens, generate_different=generate_different_devdis)
     
+    print(f"loading {devdis_dir}")
     val_dataset = SameDifferentDataset(devdis_dir, transform=transform, rotation=rotation, scaling=scaling)
     val_dataloader = DataLoader(val_dataset, batch_size=n_val // 4, shuffle=True)
     

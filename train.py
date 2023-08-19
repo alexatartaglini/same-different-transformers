@@ -278,8 +278,6 @@ parser.add_argument('--n_test_tokens', type=int, default=-1, help='Number of uni
                     in the test dataset. If -1, then number tokens = (total - n_train_tokens) // 2.')
 parser.add_argument('--n_val', type=int, default=-1,
                     help='Total # validation stimuli. Default: equal to n_train.')
-parser.add_argument('--n_devdis', type=int, default=-1,
-                    help='Total # devdis stimuli. Default: equal to n_train.')
 parser.add_argument('--n_test', type=int, default=-1,
                     help='Total # test stimuli. Default: equal to n_train.')
 parser.add_argument('--n_train_ood', nargs='+', required=False, default=[],

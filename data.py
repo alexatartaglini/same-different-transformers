@@ -102,6 +102,8 @@ def create_stimuli(k, n, objects, unaligned, patch_size, multiplier, im_size, st
     :param patch_dir: Relevant location to store the created stimuli.
     :param condition: train, test, or val.
     '''
+    if n <= 0: 
+        return
 
     obj_size = patch_size * multiplier
 

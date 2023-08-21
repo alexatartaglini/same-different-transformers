@@ -650,36 +650,30 @@ val_dataloaders = [val_dataloader]
 val_labels = [train_dataset_string]
 
 for v in range(len(val_datasets_names)):
+    # special case if there aren't enough tokens for train and we want to squeeze out a validation set
     avail_tokens = len(os.listdir(f'stimuli/source/{val_datasets_names[v]}'))
     needed = n_train_tokens_ood[v] + n_val_tokens_ood[v] + n_test_tokens_ood[v]
+    
     if avail_tokens >= needed:
-        val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, 
-                                                f'trainsize_{n_train_ood[v]}_{n_train_tokens_ood[v]}-{n_val_tokens_ood[v]}-{n_test_tokens_ood[v]}')
+        pass
+    elif avail_tokens < needed: 
+        if avail_tokens >= n_val_tokens_ood[v]:
+            n_train_ood[v] = 0
+            n_test_ood[v] = 0
+            n_train_tokens_ood[v] = 0
+            n_test_tokens_ood[v] = 0
+        else:
+            raise Exception(f"Not enough tokens in {val_datasets_names[v]} to generate validation set ({avail_tokens} avail)")
 
-        if not os.path.exists(val_dir):
-            print(f"generating {val_dir}")
-            call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
-                                val_dir, rotation, scaling, n_train_tokens=n_train_tokens_ood[v], n_val_tokens=n_val_tokens_ood[v],
-                                n_test_tokens=n_test_tokens_ood[v])
+    val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, 
+                                            f'trainsize_{n_train_ood[v]}_{n_train_tokens_ood[v]}-{n_val_tokens_ood[v]}-{n_test_tokens_ood[v]}')
+
+    if not os.path.exists(val_dir):
+        print(f"generating {val_dir}")
+        call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
+                            val_dir, rotation, scaling, n_train_tokens=n_train_tokens_ood[v], n_val_tokens=n_val_tokens_ood[v],
+                            n_test_tokens=n_test_tokens_ood[v])
     
-    # special case if there aren't enough tokens for train and we want to squeeze out a validation set
-    elif avail_tokens >= n_val_tokens_ood[v]: 
-        n_train_ood[v] = 0
-        n_test_ood[v] = 0
-        n_train_tokens_ood[v] = 0
-        n_test_tokens_ood[v] = 0
-
-        val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(val_datasets_names[v], pos_string, aug_string, 
-                                                f'trainsize_{n_train_ood[v]}_{n_train_tokens_ood[v]}-{n_val_tokens_ood[v]}-{n_test_tokens_ood[v]}')
-
-        if not os.path.exists(val_dir):
-            print(f"generating {val_dir}")
-            call_create_stimuli(patch_size, n_train_ood[v], n_val_ood[v], n_test_ood[v], k, unaligned, multiplier, 
-                                val_dir, rotation, scaling, n_train_tokens=n_train_tokens_ood[v], n_val_tokens=n_val_tokens_ood[v],
-                                n_test_tokens=n_test_tokens_ood[v])
-    
-    else:
-        raise Exception(f"Not enough tokens in {val_datasets_names[v]} to generate validation set ({avail_tokens} avail)")
 
     print(f"loading {val_dir}")
     val_dataset = SameDifferentDataset(val_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)

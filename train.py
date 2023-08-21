@@ -15,6 +15,7 @@ import wandb
 import numpy as np
 import sys
 from math import floor
+import copy
 
 
 os.chdir(sys.path[0])
@@ -389,11 +390,11 @@ if len(n_train_ood) == 0:
 elif len(n_train_ood) == 1:
     n_train_ood = [int(n_train_ood[0]) for _ in range(len(val_datasets_names))]
 if len(n_val_ood) == 0:
-    n_val_ood = n_train_ood
+    n_val_ood = copy.deepcopy(n_train_ood)
 elif len(n_val_ood) == 1:
     n_val_ood = [int(n_val_ood[0]) for _ in range(len(val_datasets_names))]
 if len(n_test_ood) == 0:
-    n_test_ood = n_train_ood
+    n_test_ood = copy.deepcopy(n_train_ood)
 elif len(n_test_ood) == 1:
     n_test_ood = [int(n_test_ood[0]) for _ in range(len(val_datasets_names))]
 

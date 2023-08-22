@@ -16,6 +16,7 @@ import numpy as np
 import sys
 from math import floor
 import copy
+import json
 
 
 os.chdir(sys.path[0])
@@ -46,21 +47,20 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
         model = model['classifier']
         print('getting features...')
         
-        for bi, (d, f) in enumerate(data_loader):
-            if model_type == 'vit':
-                inputs = d['pixel_values'].squeeze(1).to(device)
-            else:
-                inputs = d['image'].to(device)
-                
-            out_features = backbone(inputs).to(device)
-                
-            for fi in range(len(f)):
-                filename = f[fi]
-                features[filename] = out_features[fi, :]
-
-        for i in range(len(val_dataloaders)):
-            val_dataloader = val_dataloaders[i]
-            for bi, (d, f) in enumerate(val_dataloader):
+        try:
+            if args.model_type == 'resnet':
+                model_string = 'resnet_{0}'.format(args.cnn_size)
+            elif args.model_type == 'vit':
+                model_string = 'vit_b{0}'.format(args.patch_size)
+            else:              
+                if 'vit' in args.model_type:
+                    model_string = 'clip_vit_b{0}'.format(args.patch_size)
+                else:
+                    model_string = 'clip_resnet50'
+            
+            features = json.load(open(f'features/{model_string}.json'))
+        except FileNotFoundError:
+            for bi, (d, f) in enumerate(data_loader):
                 if model_type == 'vit':
                     inputs = d['pixel_values'].squeeze(1).to(device)
                 else:
@@ -71,6 +71,21 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 for fi in range(len(f)):
                     filename = f[fi]
                     features[filename] = out_features[fi, :]
+    
+            for i in range(len(val_dataloaders)):
+                val_dataloader = val_dataloaders[i]
+                for bi, (d, f) in enumerate(val_dataloader):
+                    if model_type == 'vit':
+                        inputs = d['pixel_values'].squeeze(1).to(device)
+                    else:
+                        inputs = d['image'].to(device)
+                        
+                    out_features = backbone(inputs).to(device)
+                        
+                    for fi in range(len(f)):
+                        filename = f[fi]
+                        features[filename] = out_features[fi, :]
+            json.dump(features, open(f'features/{model_string}.json', 'w'))
     else:
         model = model['classifier']
 
@@ -438,6 +453,11 @@ else:
     
 if feature_extract:
     fe_string = '_fe'
+    
+    try:
+        os.mkdir('features')
+    except FileExistsError:
+        pass
 else:
     fe_string = ''
     

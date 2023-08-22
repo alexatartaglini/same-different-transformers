@@ -84,7 +84,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                         
                     for fi in range(len(f)):
                         filename = f[fi]
-                        features[filename] = out_features[fi, :]
+                        features[filename] = out_features[fi, :].cpu().numpy()
             json.dump(features, open(f'features/{model_string}.json', 'w'))
     else:
         model = model['classifier']

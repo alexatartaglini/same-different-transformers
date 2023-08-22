@@ -16,7 +16,7 @@ import numpy as np
 import sys
 from math import floor
 import copy
-import json
+import pickle
 
 
 os.chdir(sys.path[0])
@@ -58,7 +58,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 else:
                     model_string = 'clip_resnet50'
             
-            features = json.load(open(f'features/{model_string}.json'))
+            features = pickle.load(open(f'features/{model_string}.pickle', 'rb'))
         except FileNotFoundError:
             for bi, (d, f) in enumerate(data_loader):
                 if model_type == 'vit':
@@ -84,8 +84,8 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                         
                     for fi in range(len(f)):
                         filename = f[fi]
-                        features[filename] = out_features[fi, :].cpu().numpy()
-            json.dump(features, open(f'features/{model_string}.json', 'w'))
+                        features[filename] = out_features[fi, :].cpu()
+            pickle.dump(features, open(f'features/{model_string}.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     else:
         model = model['classifier']
 

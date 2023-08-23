@@ -16,6 +16,7 @@ import numpy as np
 import sys
 from math import floor
 import copy
+import pickle
 
 
 os.chdir(sys.path[0])
@@ -26,6 +27,14 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
     
     if not val_labels:
         val_labels = list(range(len(val_dataloaders)))
+        
+    aug_string = ''
+    if args.rotation:
+        aug_string += 'R'
+    if args.scaling:
+        aug_string += 'S'
+    if len(aug_string) == 0:
+        aug_string = 'N'
     
     int_to_label = {0: 'different', 1: 'same'}
     
@@ -45,32 +54,18 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
         backbone = model['backbone']
         model = model['classifier']
         print('getting features...')
-        
-        for bi, (d, f) in enumerate(data_loader):
-            if model_type == 'vit':
-                inputs = d['pixel_values'].squeeze(1).to(device)
-            else:
-                inputs = d['image'].to(device)
-                
-            out_features = backbone(inputs).to(device)
-                
-            for fi in range(len(f)):
-                filename = f[fi]
-                features[filename] = out_features[fi, :]
 
-        for i in range(len(val_dataloaders)):
-            val_dataloader = val_dataloaders[i]
-            for bi, (d, f) in enumerate(val_dataloader):
-                if model_type == 'vit':
-                    inputs = d['pixel_values'].squeeze(1).to(device)
-                else:
-                    inputs = d['image'].to(device)
-                    
-                out_features = backbone(inputs).to(device)
-                    
-                for fi in range(len(f)):
-                    filename = f[fi]
-                    features[filename] = out_features[fi, :]
+        if args.model_type == 'resnet':
+            model_string = 'resnet_{0}'.format(args.cnn_size)
+        elif args.model_type == 'vit':
+            model_string = 'vit_b{0}'.format(args.patch_size)
+        else:              
+            if 'vit' in args.model_type:
+                model_string = 'clip_vit_b{0}'.format(args.patch_size)
+            else:
+                model_string = 'clip_resnet50'
+        
+        features = pickle.load(open(f'features/{model_string}_{aug_string}.pickle', 'rb'))
     else:
         model = model['classifier']
 
@@ -90,9 +85,16 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 inputs = d['image'].to(device)
                 
             if args.feature_extract:
-                inputs = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
+                inputs_ = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
                 for fi in range(len(f)):
-                    inputs[fi, :] = features[f[fi]]
+                    try:
+                        inputs_[fi, :] = features[f[fi]]
+                    except KeyError:
+                        inputs_[fi, :] = backbone(inputs)[fi, :].cpu()
+                        features[f[fi]] = inputs_[fi, :]
+                        pickle.dump(features, open(f'features/{model_string}_{aug_string}.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                        
+                inputs = inputs_
                 
             labels = d['label'].to(device)
 
@@ -146,9 +148,16 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     labels = d['label'].to(device)
                     
                     if args.feature_extract:
-                        inputs = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
+                        inputs_ = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
                         for fi in range(len(f)):
-                            inputs[fi, :] = features[f[fi]].to(device)
+                            try:
+                                inputs_[fi, :] = features[f[fi]]
+                            except:
+                                inputs_[fi, :] = backbone(inputs)[fi, :].cpu()
+                                features[f[fi]] = inputs_[fi, :]
+                                pickle.dump(features, open(f'features/{model_string}_{aug_string}.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                                
+                        inputs = inputs_
 
                     outputs = model(inputs)
                     if model_type == 'vit':
@@ -438,6 +447,11 @@ else:
     
 if feature_extract:
     fe_string = '_fe'
+    
+    try:
+        os.mkdir('features')
+    except FileExistsError:
+        pass
 else:
     fe_string = ''
     

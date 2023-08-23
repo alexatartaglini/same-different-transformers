@@ -148,9 +148,16 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     labels = d['label'].to(device)
                     
                     if args.feature_extract:
-                        inputs = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
+                        inputs_ = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
                         for fi in range(len(f)):
-                            inputs[fi, :] = features[f[fi]].to(device)
+                            try:
+                                inputs_[fi, :] = features[f[fi]]
+                            except KeyError:
+                                inputs_[fi, :] = backbone(inputs)[fi, :].cpu()
+                                features[f[fi]] = inputs_[fi, :]
+                                pickle.dump(features, open(f'features/{model_string}_{aug_string}.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                                
+                        inputs = inputs_
 
                     outputs = model(inputs)
                     if model_type == 'vit':

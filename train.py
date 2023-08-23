@@ -152,7 +152,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                         for fi in range(len(f)):
                             try:
                                 inputs_[fi, :] = features[f[fi]]
-                            except KeyError:
+                            except:
                                 inputs_[fi, :] = backbone(inputs)[fi, :].cpu()
                                 features[f[fi]] = inputs_[fi, :]
                                 pickle.dump(features, open(f'features/{model_string}_{aug_string}.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)

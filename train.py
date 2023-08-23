@@ -96,9 +96,9 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 
             labels = d['label'].to(device)
 
-            optimizer.zero_grad()
-
             with torch.set_grad_enabled(True):
+                optimizer.zero_grad()
+
                 outputs = model(inputs)
 
                 if model_type == 'vit':
@@ -636,7 +636,7 @@ if not os.path.exists(train_dir):
                         n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)
     
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus, drop_last=True)
 
 #features = {}  # Keep track of features
 #backbone = model['backbone']

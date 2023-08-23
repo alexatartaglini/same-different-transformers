@@ -27,6 +27,14 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
     
     if not val_labels:
         val_labels = list(range(len(val_dataloaders)))
+        
+    aug_string = ''
+    if args.rotation:
+        aug_string += 'R'
+    if args.scaling:
+        aug_string += 'S'
+    if len(aug_string) == 0:
+        aug_string = 'N'
     
     int_to_label = {0: 'different', 1: 'same'}
     
@@ -58,7 +66,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 else:
                     model_string = 'clip_resnet50'
             
-            features = pickle.load(open(f'features/{model_string}.pickle', 'rb'))
+            features = pickle.load(open(f'features/{model_string}_{aug_string}.pickle', 'rb'))
         except FileNotFoundError:
             for bi, (d, f) in enumerate(data_loader):
                 if model_type == 'vit':

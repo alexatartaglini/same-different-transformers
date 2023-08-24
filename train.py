@@ -108,7 +108,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 optimizer.step()
 
             print('\t({0}/{1}) Batch loss: {2:.4f}'.format(bi + 1, dataset_size // batch_size, loss.item()))
-            running_loss += loss.item() * inputs.size(0)
+            running_loss += loss.detach().item() * inputs.size(0)
             running_acc += acc * inputs.size(0)
 
         epoch_loss = running_loss / dataset_size
@@ -174,7 +174,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                                                 diff_scores[j], same_acc, diff_acc)
 
                     running_acc_val += acc * inputs.size(0)
-                    running_loss_val += loss.item() * inputs.size(0)
+                    running_loss_val += loss.detach().item() * inputs.size(0)
 
                 epoch_loss_val = running_loss_val / len(val_dataset)
                 epoch_acc_val = running_acc_val / len(val_dataset)

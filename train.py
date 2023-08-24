@@ -87,12 +87,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
             if args.feature_extract:
                 inputs_ = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
                 for fi in range(len(f)):
-                    try:
-                        inputs_[fi, :] = features[f[fi]]
-                    except KeyError:
-                        inputs_[fi, :] = backbone(inputs)[fi, :].cpu()
-                        features[f[fi]] = inputs_[fi, :]
-                        pickle.dump(features, open(f'features/{model_string}_{aug_string}.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                    inputs_[fi, :] = features[f[fi]]
                         
                 inputs = inputs_
                 
@@ -150,12 +145,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     if args.feature_extract:
                         inputs_ = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
                         for fi in range(len(f)):
-                            try:
-                                inputs_[fi, :] = features[f[fi]]
-                            except:
-                                inputs_[fi, :] = backbone(inputs)[fi, :].cpu()
-                                features[f[fi]] = inputs_[fi, :]
-                                pickle.dump(features, open(f'features/{model_string}_{aug_string}.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                            inputs_[fi, :] = features[f[fi]]
                                 
                         inputs = inputs_
 

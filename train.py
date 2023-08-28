@@ -51,6 +51,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
     
     if args.feature_extract:
         features = {}  # Keep track of features
+        backbone = model['backbone'].to(device)
         model = model['classifier']
         print('getting features...')
 

@@ -135,23 +135,19 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 running_acc_val = 0.0
 
                 for bi, (d, f) in enumerate(val_dataloader):
+                    if model_type == 'vit':
+                        inputs = d['pixel_values'].squeeze(1).to(device)
+                    else:
+                        inputs = d['image'].to(device)
+                    
                     if args.feature_extract:
-                        inputs = torch.zeros((1024, in_features)).to(device)
+                        inputs = torch.zeros((inputs.shape[0], in_features)).to(device)
                         for fi in range(len(f)):
                             inputs[fi, :] = features[f[fi]]
-                    else:
-                        if model_type == 'vit':
-                            inputs = d['pixel_values'].squeeze(1).to(device)
-                        else:
-                            inputs = d['image'].to(device)
                     
                     labels = d['label'].to(device)
-                    print(val_label)
-                    print(labels.shape)
 
-                    print(inputs.shape)
                     outputs = model(inputs)
-                    print(outputs.shape)
                     if model_type == 'vit':
                         outputs = outputs.logits
 

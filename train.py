@@ -144,7 +144,8 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                             inputs = d['pixel_values'].squeeze(1).to(device)
                         else:
                             inputs = d['image'].to(device)
-                        labels = d['label'].to(device)
+                    
+                    labels = d['label'].to(device)
 
                     outputs = model(inputs)
                     if model_type == 'vit':

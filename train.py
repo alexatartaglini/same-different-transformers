@@ -51,7 +51,6 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
     
     if args.feature_extract:
         features = {}  # Keep track of features
-        backbone = model['backbone']
         model = model['classifier']
         print('getting features...')
 
@@ -66,6 +65,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 model_string = 'clip_resnet50'
         
         features = pickle.load(open(f'features/{model_string}_{aug_string}.pickle', 'rb'))
+        in_features = list(model.children())[0].in_features
     else:
         model = model['classifier']
 
@@ -79,17 +79,15 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
 
         # Iterate over data.
         for bi, (d, f) in enumerate(data_loader):
-            if model_type == 'vit':
-                inputs = d['pixel_values'].squeeze(1).to(device)
-            else:
-                inputs = d['image'].to(device)
-                
             if args.feature_extract:
-                inputs_ = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
+                inputs = torch.zeros((batch_size, in_features)).to(device)
                 for fi in range(len(f)):
-                    inputs_[fi, :] = features[f[fi]]
-                        
-                inputs = inputs_
+                    inputs[fi, :] = features[f[fi]]
+            else:
+                if model_type == 'vit':
+                    inputs = d['pixel_values'].squeeze(1).to(device)
+                else:
+                    inputs = d['image'].to(device)
                 
             labels = d['label'].to(device)
 
@@ -136,18 +134,16 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 running_acc_val = 0.0
 
                 for bi, (d, f) in enumerate(val_dataloader):
-                    if model_type == 'vit':
-                        inputs = d['pixel_values'].squeeze(1).to(device)
-                    else:
-                        inputs = d['image'].to(device)
-                    labels = d['label'].to(device)
-                    
                     if args.feature_extract:
-                        inputs_ = torch.zeros((inputs.shape[0], list(model.children())[0].in_features)).to(device)
+                        inputs = torch.zeros((1024, in_features)).to(device)
                         for fi in range(len(f)):
-                            inputs_[fi, :] = features[f[fi]]
-                                
-                        inputs = inputs_
+                            inputs[fi, :] = features[f[fi]]
+                    else:
+                        if model_type == 'vit':
+                            inputs = d['pixel_values'].squeeze(1).to(device)
+                        else:
+                            inputs = d['image'].to(device)
+                        labels = d['label'].to(device)
 
                     outputs = model(inputs)
                     if model_type == 'vit':
@@ -647,7 +643,7 @@ train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True
 #model = model['classifier']
 
 val_dataset = SameDifferentDataset(train_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-val_dataloader = DataLoader(val_dataset, batch_size=n_val // 4, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=1024, shuffle=True)
     
 # Construct other validation sets
 val_datasets = [val_dataset]
@@ -682,7 +678,7 @@ for v in range(len(val_datasets_names)):
 
     print(f"loading {val_dir}")
     val_dataset = SameDifferentDataset(val_dir + '/val', transform=transform, rotation=rotation, scaling=scaling)
-    val_dataloader = DataLoader(val_dataset, batch_size=n_val_ood[v] // 4, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=1024, shuffle=True)
     
     val_datasets.append(val_dataset)
     val_dataloaders.append(val_dataloader)
@@ -704,7 +700,7 @@ for devdis in devdis_names:
     
     print(f"loading {devdis_dir}")
     val_dataset = SameDifferentDataset(devdis_dir, transform=transform, rotation=rotation, scaling=scaling)
-    val_dataloader = DataLoader(val_dataset, batch_size=n_val // 4, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=1024, shuffle=True)
     
     val_datasets.append(val_dataset)
     val_dataloaders.append(val_dataloader)

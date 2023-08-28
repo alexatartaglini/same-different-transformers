@@ -91,9 +91,9 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 
             labels = d['label'].to(device)
 
-            optimizer.zero_grad()
-
             with torch.set_grad_enabled(True):
+                optimizer.zero_grad()
+
                 outputs = model(inputs)
 
                 if model_type == 'vit':
@@ -106,7 +106,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                 optimizer.step()
 
             print('\t({0}/{1}) Batch loss: {2:.4f}'.format(bi + 1, dataset_size // batch_size, loss.item()))
-            running_loss += loss.item() * inputs.size(0)
+            running_loss += loss.detach().item() * inputs.size(0)
             running_acc += acc * inputs.size(0)
 
         epoch_loss = running_loss / dataset_size
@@ -170,7 +170,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                                                 diff_scores[j], same_acc, diff_acc)
 
                     running_acc_val += acc * inputs.size(0)
-                    running_loss_val += loss.item() * inputs.size(0)
+                    running_loss_val += loss.detach().item() * inputs.size(0)
 
                 epoch_loss_val = running_loss_val / len(val_dataset)
                 epoch_acc_val = running_acc_val / len(val_dataset)
@@ -636,7 +636,7 @@ if not os.path.exists(train_dir):
                         n_val_tokens=n_val_tokens, n_test_tokens=n_test_tokens)
     
 train_dataset = SameDifferentDataset(train_dir + '/train', transform=transform, rotation=rotation, scaling=scaling)
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_gpus, drop_last=True)
 
 #features = {}  # Keep track of features
 #backbone = model['backbone']

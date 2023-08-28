@@ -146,8 +146,12 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                             inputs = d['image'].to(device)
                     
                     labels = d['label'].to(device)
+                    print(val_label)
+                    print(labels.shape)
 
+                    print(inputs.shape)
                     outputs = model(inputs)
+                    print(outputs.shape)
                     if model_type == 'vit':
                         outputs = outputs.logits
 

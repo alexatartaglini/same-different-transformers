@@ -69,6 +69,8 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
         in_features = list(model.children())[0].in_features
     else:
         model = model['classifier']
+        
+    print(model)
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch + 1, num_epochs))
@@ -83,7 +85,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
             if args.feature_extract:
                 inputs = torch.zeros((batch_size, in_features)).to(device)
                 for fi in range(len(f)):
-                    inputs[fi, :] = features[f[fi]]
+                    inputs[fi, :] = features[f[fi]].to(device)
             else:
                 if model_type == 'vit':
                     inputs = d['pixel_values'].squeeze(1).to(device)
@@ -143,7 +145,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
                     if args.feature_extract:
                         inputs = torch.zeros((inputs.shape[0], in_features)).to(device)
                         for fi in range(len(f)):
-                            inputs[fi, :] = features[f[fi]]
+                            inputs[fi, :] = features[f[fi]].to(device)
                     
                     labels = d['label'].to(device)
 

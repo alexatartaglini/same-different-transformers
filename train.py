@@ -307,7 +307,7 @@ parser.add_argument('--save_model_freq', help='Number of times to save model che
                     throughout training. Saves are equally spaced from 0 to num_epoch.', type=int,
                     default=-1)
 parser.add_argument('--checkpoint', help='Whether or not to store model checkpoints.', action='store_true',
-                    default=False)
+                    default=True)
 parser.add_argument('--log_preds_freq', help='Number of times to log model predictions \
                     on test sets throughout training. Saves are equally spaced from 0 to num_epochs.',
                     type=int, default=3)

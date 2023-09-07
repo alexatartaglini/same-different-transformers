@@ -45,7 +45,7 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
     log_preds_freq = args.log_preds_freq
     
     if save_model_freq == -1:
-        save_model_epochs = [num_epochs]
+        save_model_epochs = [num_epochs - 1]
     else:
         save_model_epochs = np.linspace(0, num_epochs, save_model_freq, dtype=int)
     log_preds_epochs = np.linspace(0, num_epochs, log_preds_freq, dtype=int)
@@ -374,9 +374,9 @@ if val_datasets_names == 'all':
     for td in train_dataset_names:
         val_datasets_names.remove(td)
         
-    for vd in val_datasets_names:
-        if 'COMPLEX' in vd:
-            val_datasets_names.remove(vd)
+for vd in val_datasets_names:
+    if 'COMPLEX' in vd:
+        val_datasets_names.remove(vd)
 
 if n_val == -1:
     n_val = n_train

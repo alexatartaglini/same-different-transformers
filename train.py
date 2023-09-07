@@ -44,7 +44,10 @@ def train_model(args, model, device, data_loader, dataset_size, optimizer,
     save_model_freq = args.save_model_freq
     log_preds_freq = args.log_preds_freq
     
-    save_model_epochs = np.linspace(0, num_epochs, save_model_freq, dtype=int)
+    if save_model_freq == -1:
+        save_model_epochs = [num_epochs]
+    else:
+        save_model_epochs = np.linspace(0, num_epochs, save_model_freq, dtype=int)
     log_preds_epochs = np.linspace(0, num_epochs, log_preds_freq, dtype=int)
 
     criterion = nn.CrossEntropyLoss()
@@ -302,7 +305,7 @@ parser.add_argument('--generate_different_devdis', action='store_true', help='Ge
 # Paremeters for logging, storing models, etc.
 parser.add_argument('--save_model_freq', help='Number of times to save model checkpoints \
                     throughout training. Saves are equally spaced from 0 to num_epoch.', type=int,
-                    default=3)
+                    default=-1)
 parser.add_argument('--checkpoint', help='Whether or not to store model checkpoints.', action='store_true',
                     default=False)
 parser.add_argument('--log_preds_freq', help='Number of times to log model predictions \
@@ -358,10 +361,6 @@ n_devdis = args.n_devdis
 n_devdis_tokens = args.n_devdis_tokens
 generate_different_devdis = args.generate_different_devdis
 
-# if n_train_tokens > n_train:
-#     print('n_train_tokens > n_train. train.py exiting...')
-#     sys.exit(0)
-
 # make deterministic if given a seed 
 if seed != -1:
     torch.manual_seed(seed)
@@ -374,8 +373,10 @@ if val_datasets_names == 'all':
     
     for td in train_dataset_names:
         val_datasets_names.remove(td)
-    
-#if isinstance(n_val, float) and isinstance(n_test, float):
+        
+    for vd in val_datasets_names:
+        if 'COMPLEX' in vd:
+            val_datasets_names.remove(vd)
 
 if n_val == -1:
     n_val = n_train

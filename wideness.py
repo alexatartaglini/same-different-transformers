@@ -109,6 +109,7 @@ if args.model=='rn50img':
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
+    model.to(device)
 elif args.model=='vit16img':
     vit16img_path = 'google/vit-base-patch16-224-in21k'
     model = ViTForImageClassification.from_pretrained(
@@ -118,14 +119,16 @@ elif args.model=='vit16img':
         label2id=label_to_int
     )
     transform = ViTImageProcessor(do_resize=False).from_pretrained(vit16img_path)
+    model.to(device)
 elif args.model=='rn50clip':
     rn50clip, transform = clip.load('RN50', device=device)
+    rn50clip.to(device)
     model = rn50clip.encode_image
 elif args.model=='vit16clip':
     vit16clip, transform = clip.load(f'ViT-B/16', device=device)
+    vit16clip.to(device)
     model = vit16clip.encode_image
 
-model.to(device)
 all_wideness(model, args.model, transform)
 
 tock = time.time()

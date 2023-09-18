@@ -119,9 +119,11 @@ elif args.model=='vit16img':
     )
     transform = ViTImageProcessor(do_resize=False).from_pretrained(vit16img_path)
 elif args.model=='rn50clip':
-    model, transform = clip.load('RN50', device=device)
+    rn50clip, transform = clip.load('RN50', device=device)
+    model = rn50clip.encode_image
 elif args.model=='vit16clip':
     vit16clip, transform = clip.load(f'ViT-B/16', device=device)
+    model = vit16clip.encode_image
 
 model.to(device)
 all_wideness(model, args.model, transform)

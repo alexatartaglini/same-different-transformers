@@ -29,18 +29,11 @@ def save_similarities(dataset, model_type, batch_size, num_batches, where='last'
     assert where in ['last', 'first']
     similarities = np.ones((6400, 6400)) * -np.inf
     for i in range(num_batches):
-        # if i==3:
-        #     break
         main = torch.load(f'wideness/{model_type}/{dataset}/{where}/{i}.pt')
         for j in range(i, num_batches):
-            # if j==3:
-            #     break
             compare = torch.load(f'wideness/{model_type}/{dataset}/{where}/{j}.pt')
 
             # this matrix now has [i...i+batch_size-1] similarities with [j...j+batch_size-1]
-            if model_type == "vit16img":
-                main = main.logits
-                compare = compare.logits
             res = cossim(main, compare)
             similarities[i*batch_size:i*batch_size+batch_size, j*batch_size:j*batch_size+batch_size] = res
     np.save(f'wideness/{model_type}/{dataset}/{where}/similarities.npy', similarities)
@@ -54,10 +47,9 @@ def all_wideness(model, model_type, transform, dataset_names=all_datasets, batch
     os.makedirs(f'wideness/{model_type}/rand/first', exist_ok=True)
     with torch.set_grad_enabled(False):
         for i in range(num_batches):
-            # if i == 3:
-            #     break
             rand = torch.normal(0, 1, size=[batch_size, 3, 224, 224]).to(device)
             last = model(rand)
+            last = last.logits if model_type=='vit16img' else last
             torch.save(last, f'wideness/{model_type}/rand/last/{i}.pt')
     save_similarities('rand', model_type, batch_size, num_batches, where='last')
     # save_similarities('rand', model_type, batch_size, num_batches, where='first')
@@ -73,7 +65,6 @@ def all_wideness(model, model_type, transform, dataset_names=all_datasets, batch
 
         dataset = SameDifferentDataset(val_dir + '/train', transform=transform, rotation=False, scaling=False)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        print(s, len(dataset), len(dataloader))
 
         # convert all the images to representations and cache them
         os.makedirs(f'wideness/{model_type}/{s}/last', exist_ok=True)
@@ -82,13 +73,12 @@ def all_wideness(model, model_type, transform, dataset_names=all_datasets, batch
         with torch.set_grad_enabled(False):
             for bi, (d, f) in enumerate(dataloader):
                 fnames += f
-                # if bi==3:
-                #     break
                 if model_type == 'vit':
                     inputs = d['pixel_values'].squeeze(1).to(device)
                 else:
                     inputs = d['image'].to(device)
                 outputs = model(inputs)
+                outputs = outputs.logits if model_type=='vit16img' else outputs
                 torch.save(outputs, f'wideness/{model_type}/{s}/last/{bi}.pt')
         with open(f'wideness/{model_type}/{s}/fnames.pkl', 'wb') as f:
             pickle.dump(fnames, f)

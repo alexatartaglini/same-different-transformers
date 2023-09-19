@@ -38,7 +38,9 @@ def save_similarities(dataset, model_type, batch_size, num_batches, where='last'
             compare = torch.load(f'wideness/{model_type}/{dataset}/{where}/{j}.pt')
 
             # this matrix now has [i...i+batch_size-1] similarities with [j...j+batch_size-1]
-            print(main.shape, compare.shape)
+            if model_type == "vit16img":
+                main = main.logits
+                compare = compare.logits
             res = cossim(main, compare)
             similarities[i*batch_size:i*batch_size+batch_size, j*batch_size:j*batch_size+batch_size] = res
     np.save(f'wideness/{model_type}/{dataset}/{where}/similarities.npy', similarities)

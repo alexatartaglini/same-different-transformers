@@ -100,7 +100,7 @@ if args.model:
 if args.out:
     sim_avgs = pd.DataFrame(columns=['Model', 'Measured Dataset', 'avg', 'sameavg', 'diffavg', 'samediffavg'])
     for m in modelstrs:
-        for d in all_datasets:
+        for d in all_datasets + ['rand']:
             similarities = np.load(f'wideness/{m}/{d}/last/similarities.npy')
             similarities = np.triu(similarities)
             similarities[np.tril_indices(similarities.shape[0], -1)] = np.nan

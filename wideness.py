@@ -74,7 +74,7 @@ def all_wideness(model, model_type, transform, dataset_names=all_datasets, batch
         with torch.set_grad_enabled(False):
             for bi, (d, f) in enumerate(dataloader):
                 fnames += f
-                if model_type == 'vit':
+                if model_type == 'vit16img':
                     inputs = d['pixel_values'].squeeze(1).to(device)
                 else:
                     inputs = d['image'].to(device)

@@ -5,6 +5,7 @@ import torch
 import pickle
 import numpy as np
 import argparse
+import pandas as pd
 from torch.utils.data import DataLoader
 from torchvision.models import resnet50
 from torchvision import transforms
@@ -89,10 +90,28 @@ def all_wideness(model, model_type, transform, dataset_names=all_datasets, batch
         print(f'done {s}')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, required=True)
+parser.add_argument('--model', type=str)
+parser.add_argument('--out', action='store_true')
 args = parser.parse_args()
 
-assert(args.model in ['rn50img', 'vit16img', 'rn50clip', 'vit16clip'])
+modelstrs = ['rn50img', 'vit16img', 'rn50clip', 'vit16clip']
+if args.model:
+    assert(args.model in modelstrs)
+if args.out:
+    sim_avgs = pd.DataFrame(columns=['Model', 'Measured Dataset', 'avg', 'sameavg', 'diffavg', 'samediffavg'])
+    for m in modelstrs:
+        for d in all_datasets:
+            similarities = np.load(f'wideness/{m}/{d}/last/similarities.npy')
+            similarities = np.triu(similarities)
+            similarities[np.tril_indices(similarities.shape[0], -1)] = np.nan
+
+            avg = np.nanmean(similarities)
+            sameavg = np.nanmean(similarities[0:3200, 0:3200])
+            diffavg = np.nanmean(similarities[3200:6400, 3200:6400])
+            samediffavg = np.nanmean(similarities[0:3200, 3200:6400])
+            sim_avgs.add((m, d, avg, sameavg, diffavg, samediffavg))
+    sim_avgs.to_csv('wideness/sim_avgs.csv')
+
 
 tick = time.time()
 if args.model=='rn50img':

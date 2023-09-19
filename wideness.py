@@ -109,7 +109,7 @@ if args.out:
             sameavg = np.nanmean(similarities[0:3200, 0:3200])
             diffavg = np.nanmean(similarities[3200:6400, 3200:6400])
             samediffavg = np.nanmean(similarities[0:3200, 3200:6400])
-            sim_avgs.add((m, d, avg, sameavg, diffavg, samediffavg))
+            sim_avgs.loc[len(sim_avgs.index)] = (m, d, avg, sameavg, diffavg, samediffavg)
     sim_avgs.to_csv('wideness/sim_avgs.csv')
 
 

@@ -6,6 +6,7 @@ import pickle
 import numpy as np
 import argparse
 import pandas as pd
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision.models import resnet50
 from torchvision import transforms
@@ -152,9 +153,12 @@ if args.model=='rn50img':
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
-    if args.checkpoint is not None:
+    if args.checkpoint is not None: #UNTESTED
+        in_features = model.fc.in_features
+        model.fc = nn.Linear(in_features, 2)
         model.load_state_dict(torch.load(args.checkpoint, map_location=torch.device('cpu')))
     model.to(device)
+
 elif args.model=='vit16img':
     vit16img_path = 'google/vit-base-patch16-224-in21k'
     model = ViTForImageClassification.from_pretrained(
@@ -164,20 +168,38 @@ elif args.model=='vit16img':
         label2id=label_to_int
     )
     transform = ViTImageProcessor(do_resize=False).from_pretrained(vit16img_path)
-    if args.checkpoint is not None:
+    if args.checkpoint is not None: #UNTESTED
         model.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model.to(device)
+
 elif args.model=='rn50clip':
     rn50clip, transform = clip.load('RN50', device=device)
-    rn50clip.to(device)
+    rn50clip.to(device)        
     if args.checkpoint is not None:
+        # load in the state dict with the head on
+        in_features = rn50clip.visual.output_dim
+        fc = nn.Linear(in_features, 2).to(device)
+        rn50clip = nn.Sequential(rn50clip.visual, fc).float()
         rn50clip.load_state_dict(torch.load(args.checkpoint, map_location=device))
+        
+        # take the head back off 
+        rn50clip = nn.Sequential(*list(rn50clip.modules())[:-1])
+
     model = rn50clip.encode_image
+
 elif args.model=='vit16clip':
     vit16clip, transform = clip.load(f'ViT-B/16', device=device)
     vit16clip.to(device)
     if args.checkpoint is not None:
+        # load in the state dict and then take the head back off 
+        in_features = vit16clip.visual.proj.shape[1]
+        fc = nn.Linear(in_features, 2).to(device)
+        vit16clip = nn.Sequential(vit16clip.visual, fc).float()
         vit16clip.load_state_dict(torch.load(args.checkpoint, map_location=device))
+
+        # take the head back off 
+        vit16clip = nn.Sequential(*list(vit16clip.modules())[:-1])
+
     model = vit16clip.encode_image
 
 

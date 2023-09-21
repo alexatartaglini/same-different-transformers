@@ -11,6 +11,7 @@ from torchvision.models import resnet50
 from torchvision import transforms
 from transformers import ViTForImageClassification, ViTImageProcessor
 from data import SameDifferentDataset, call_create_stimuli
+from sklearn.metrics import accuracy_score
 
 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 int_to_label = {0: 'different', 1: 'same'}
@@ -26,6 +27,31 @@ def cossim(main, compare):
     return np.dot(main, compare.T) / (np.outer(np.sqrt(np.sum(np.square(main.numpy()), axis=1)),
                                                np.sqrt(np.sum(np.square(compare.numpy()), axis=1)).T))
 
+def test_acc(val_dataloader, val_dataset, model, model_type):
+    model.eval()
+    with torch.no_grad():
+        running_acc_val = 0.0
+
+        for bi, (d, f) in enumerate(val_dataloader):
+            if model_type == 'vit16img':
+                inputs = d['pixel_values'].squeeze(1).to(device)
+            else:
+                inputs = d['image'].to(device)
+            
+            labels = d['label'].to(device)
+
+            outputs = model(inputs)
+            if model_type == 'vit16img':
+                outputs = outputs.logits
+
+            preds = outputs.argmax(1)
+            acc = accuracy_score(labels.to('cpu'), preds.to('cpu'))
+
+            running_acc_val += acc * inputs.size(0)
+
+        epoch_acc_val = running_acc_val / len(val_dataset)
+    return epoch_acc_val
+
 def save_similarities(dataset, model_type, batch_size, num_batches, where='last'):
     assert where in ['last', 'first']
     similarities = np.ones((6400, 6400)) * -np.inf
@@ -39,8 +65,10 @@ def save_similarities(dataset, model_type, batch_size, num_batches, where='last'
             similarities[i*batch_size:i*batch_size+batch_size, j*batch_size:j*batch_size+batch_size] = res
     np.save(f'wideness/{model_type}/{dataset}/{where}/similarities.npy', similarities)
 
-def all_wideness(model, model_type, transform, dataset_names=all_datasets, batch_size=64):
+def all_wideness(model, model_type, transform, checkpoint, dataset_names=all_datasets, batch_size=64):
     num_batches = int(6400/batch_size)
+    if checkpoint is not None:
+        model_type += '_' + checkpoint.split('.')[:-1]
 
     # make a bunch of random noise as a baseline
     # TODO actually save the 'first layer' representations
@@ -57,15 +85,18 @@ def all_wideness(model, model_type, transform, dataset_names=all_datasets, batch
 
     for s in dataset_names:
         # load in or generate dataset
-        val_dir = 'stimuli/{0}/{1}/{2}/{3}'.format(s, 'unaligned', 'N', 'trainsize_1200_6400-300-100')
+        dir = 'stimuli/{0}/{1}/{2}/{3}'.format(s, 'unaligned', 'N', 'trainsize_1200_6400-300-100')
 
-        if not os.path.exists(val_dir):
-            print(f"generating {val_dir}")
-            call_create_stimuli(16, 6400, 6400, 6400, 2, True, 2, val_dir, False, False,
+        if not os.path.exists(dir):
+            print(f"generating {dir}")
+            call_create_stimuli(16, 6400, 6400, 6400, 2, True, 2, dir, False, False,
                                 n_train_tokens=1200, n_val_tokens=300, n_test_tokens=100)
 
-        dataset = SameDifferentDataset(val_dir + '/train', transform=transform, rotation=False, scaling=False)
+        dataset = SameDifferentDataset(dir + '/train', transform=transform, rotation=False, scaling=False)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        test_dataset = SameDifferentDataset(dir + '/test', transform=transform, rotation=False, scaling=False)
+        test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        print(model_type, s, test_acc(test_dataloader, test_dataset, model, model_type))
 
         # convert all the images to representations and cache them
         os.makedirs(f'wideness/{model_type}/{s}/last', exist_ok=True)
@@ -91,7 +122,8 @@ def all_wideness(model, model_type, transform, dataset_names=all_datasets, batch
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str)
-parser.add_argument('--out', action='store_true')
+parser.add_argument('--checkpoint', type=str, default=None, help='path to a checkpoint to use for a model thats been fine-tuned.')
+parser.add_argument('--out', action='store_true', help='output csv of averages for similarities matrices that have already been computed.')
 args = parser.parse_args()
 
 modelstrs = ['rn50img', 'vit16img', 'rn50clip', 'vit16clip']
@@ -140,7 +172,11 @@ elif args.model=='vit16clip':
     vit16clip.to(device)
     model = vit16clip.encode_image
 
-all_wideness(model, args.model, transform)
+if args.checkpoint is not None:
+    model.load_state_dict(torch.load(args.checkpoint))
+
+model.eval()  
+all_wideness(model, args.model, transform, args.checkpoint)
 
 tock = time.time()
 print(f'seconds for {args.model}:', tock - tick, 'min:', (tock - tick)/60)

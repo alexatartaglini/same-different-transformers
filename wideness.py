@@ -127,13 +127,16 @@ parser.add_argument('--checkpoint', type=str, default=None, help='path to a chec
 parser.add_argument('--out', action='store_true', help='output csv of averages for similarities matrices that have already been computed.')
 args = parser.parse_args()
 
-modelstrs = ['rn50img', 'vit16img', 'rn50clip', 'vit16clip']
+base_models = ['rn50img', 'vit16img', 'rn50clip', 'vit16clip']
 if args.model:
-    assert(args.model in modelstrs)
+    assert(args.model in base_models)
 if args.out:
-    sim_avgs = pd.DataFrame(columns=['Model', 'Measured Dataset', 'avg', 'sameavg', 'diffavg', 'samediffavg'])
-    for m in modelstrs:
+    sim_avgs = pd.DataFrame(columns=['Model', 'checkpoint?', 'Measured Dataset', 'avg', 'sameavg', 'diffavg', 'samediffavg'])
+    for m in os.listdir('wideness'):
+        if m == 'sim_avgs.csv': continue
         for d in all_datasets + ['rand']:
+            checkpoint = m not in base_models
+
             similarities = np.load(f'wideness/{m}/{d}/last/similarities.npy')
             similarities = np.triu(similarities)
             similarities[np.tril_indices(similarities.shape[0], -1)] = np.nan
@@ -142,7 +145,7 @@ if args.out:
             sameavg = np.nanmean(similarities[0:3200, 0:3200])
             diffavg = np.nanmean(similarities[3200:6400, 3200:6400])
             samediffavg = np.nanmean(similarities[0:3200, 3200:6400])
-            sim_avgs.loc[len(sim_avgs.index)] = (m, d, avg, sameavg, diffavg, samediffavg)
+            sim_avgs.loc[len(sim_avgs.index)] = (m, checkpoint, d, avg, sameavg, diffavg, samediffavg)
     sim_avgs.to_csv('wideness/sim_avgs.csv')
 
 
@@ -185,7 +188,7 @@ elif args.model=='rn50clip':
         # take the head back off 
         rn50clip = nn.Sequential(*list(rn50clip.modules())[:-1])
 
-    model = rn50clip.encode_image
+    model = rn50clip
 
 elif args.model=='vit16clip':
     vit16clip, transform = clip.load(f'ViT-B/16', device=device)
@@ -200,7 +203,7 @@ elif args.model=='vit16clip':
         # take the head back off 
         vit16clip = nn.Sequential(*list(vit16clip.modules())[:-1])
 
-    model = vit16clip.encode_image
+    model = vit16clip
 
 
 model.eval()  

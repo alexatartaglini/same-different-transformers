@@ -186,7 +186,7 @@ elif args.model=='rn50clip':
         rn50clip.load_state_dict(torch.load(args.checkpoint, map_location=device))
         
         # take the head back off 
-        rn50clip = nn.Sequential(*list(rn50clip.modules())[:-1])
+        rn50clip = nn.Sequential(*list(rn50clip.children())[:-1])
 
     model = rn50clip
 
@@ -201,7 +201,7 @@ elif args.model=='vit16clip':
         vit16clip.load_state_dict(torch.load(args.checkpoint, map_location=device))
 
         # take the head back off 
-        vit16clip = nn.Sequential(*list(vit16clip.modules())[:-1])
+        vit16clip = nn.Sequential(*list(vit16clip.children())[:-1])
 
     model = vit16clip
 

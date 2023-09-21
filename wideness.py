@@ -153,7 +153,7 @@ if args.model=='rn50img':
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     if args.checkpoint is not None:
-        model.load_state_dict(torch.load(args.checkpoint))
+        model.load_state_dict(torch.load(args.checkpoint, map_location=torch.device('cpu')))
     model.to(device)
 elif args.model=='vit16img':
     vit16img_path = 'google/vit-base-patch16-224-in21k'
@@ -165,19 +165,19 @@ elif args.model=='vit16img':
     )
     transform = ViTImageProcessor(do_resize=False).from_pretrained(vit16img_path)
     if args.checkpoint is not None:
-        model.load_state_dict(torch.load(args.checkpoint))
+        model.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model.to(device)
 elif args.model=='rn50clip':
     rn50clip, transform = clip.load('RN50', device=device)
     rn50clip.to(device)
     if args.checkpoint is not None:
-        rn50clip.load_state_dict(torch.load(args.checkpoint))
+        rn50clip.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model = rn50clip.encode_image
 elif args.model=='vit16clip':
     vit16clip, transform = clip.load(f'ViT-B/16', device=device)
     vit16clip.to(device)
     if args.checkpoint is not None:
-        vit16clip.load_state_dict(torch.load(args.checkpoint))
+        vit16clip.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model = vit16clip.encode_image
 
 

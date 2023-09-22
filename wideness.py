@@ -71,7 +71,7 @@ def save_similarities(dataset, model_type, batch_size, num_batches, where='last'
 def all_wideness(model, model_type, transform, checkpoint, dataset_names=all_datasets, batch_size=64):
     num_batches = int(6400/batch_size)
     if checkpoint is not None:
-        model_type += '_' + checkpoint.split('.')[-2]
+        model_type += '_' + checkpoint.split('.')[0].split('/')[-1]
 
     # make a bunch of random noise as a baseline
     # TODO actually save the 'first layer' representations
@@ -179,7 +179,7 @@ elif args.model=='vit16img':
 
 elif args.model=='rn50clip':
     rn50clip, transform = clip.load('RN50', device=device)
-    rn50clip.to(device)        
+    rn50clip.to(device)
     if args.checkpoint is not None:
         # load in the state dict with the head on
         in_features = rn50clip.visual.output_dim

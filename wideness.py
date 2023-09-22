@@ -25,6 +25,8 @@ all_datasets = ['OBJECTSALL','GRAYSCALE_OBJECTSALL', 'MASK_OBJECTSALL', 'DEVELOP
                 'SQUIGGLES']
 
 def cossim(main, compare):
+    main = main.cpu()
+    compare = compare.cpu()
     return np.dot(main, compare.T) / (np.outer(np.sqrt(np.sum(np.square(main.numpy()), axis=1)),
                                                np.sqrt(np.sum(np.square(compare.numpy()), axis=1)).T))
 
@@ -69,7 +71,7 @@ def save_similarities(dataset, model_type, batch_size, num_batches, where='last'
 def all_wideness(model, model_type, transform, checkpoint, dataset_names=all_datasets, batch_size=64):
     num_batches = int(6400/batch_size)
     if checkpoint is not None:
-        model_type += '_' + ''.join(checkpoint.split('.')[:-1])
+        model_type += '_' + checkpoint.split('.')[-2]
 
     # make a bunch of random noise as a baseline
     # TODO actually save the 'first layer' representations
